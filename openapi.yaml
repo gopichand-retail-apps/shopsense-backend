@@ -1,0 +1,404 @@
+openapi: 3.1.0
+info:
+  title: ShopSense API
+  version: 1.0.0
+  description: Local catalog search and grounded recommendations. No authentication is implemented.
+servers:
+  - url: http://127.0.0.1:5802/api/v1
+    description: Loopback-only local API
+security: []
+paths:
+  /version:
+    get:
+      operationId: getApplicationVersion
+      summary: Read the backend artifact version
+      responses:
+        '200':
+          description: API service name and SemVer release from the package manifest.
+          headers:
+            Cache-Control:
+              schema: { type: string, const: no-store }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [service, version]
+                    properties:
+                      service: { type: string, const: shopsense-api }
+                      version: { type: string, pattern: '^\\d+\\.\\d+\\.\\d+$' }
+  /health:
+    get:
+      operationId: getHealth
+      summary: Check API and local storage readiness
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/Traceparent'
+      responses:
+        '200':
+          description: Service and SQLite readiness.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+            X-Trace-ID:
+              $ref: '#/components/headers/TraceId'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/HealthData'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /catalog:
+    get:
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/Traceparent'
+        - in: query
+          name: category
+          description: Optional category ID from the public content model.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Catalog products and their stored attributes.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+            X-Trace-ID:
+              $ref: '#/components/headers/TraceId'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /search:
+    post:
+      operationId: searchCatalog
+      summary: Search the catalog and return grounded recommendations
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/Traceparent'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+      responses:
+        '200':
+          description: Catalog-grounded matches and matched source details.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+            X-Trace-ID:
+              $ref: '#/components/headers/TraceId'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SearchData'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /feedback:
+    post:
+      operationId: submitFeedback
+      summary: Record feedback for a catalog item
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/Traceparent'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeedbackRequest'
+      responses:
+        '201':
+          description: Feedback accepted.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+            X-Trace-ID:
+              $ref: '#/components/headers/TraceId'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/FeedbackData'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  parameters:
+    RequestId:
+      name: X-Request-ID
+      in: header
+      required: false
+      description: Optional caller correlation ID; invalid values are replaced by the API.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 80
+        pattern: '^[A-Za-z0-9._:-]{1,80}$'
+    Traceparent:
+      name: traceparent
+      in: header
+      required: false
+      description: Optional W3C trace context; malformed values are replaced by the API.
+      schema:
+        type: string
+        pattern: '^00-[a-fA-F0-9]{32}-[a-fA-F0-9]{16}-[a-fA-F0-9]{2}$'
+  headers:
+    RequestId:
+      description: Correlation ID used by the API for this request.
+      schema:
+        type: string
+    TraceId:
+      description: Trace ID used by the API for this request.
+      schema:
+        type: string
+        pattern: '^[a-f0-9]{32}$'
+    RetryAfter:
+      description: Seconds to wait before retrying.
+      schema:
+        type: string
+        pattern: '^[0-9]+$'
+  responses:
+    BadRequest:
+      description: Request input is invalid.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+        X-Trace-ID:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    Forbidden:
+      description: Supplied browser origin is not allowlisted.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+        X-Trace-ID:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    NotFound:
+      description: Route or catalog product was not found.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+        X-Trace-ID:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    PayloadTooLarge:
+      description: Request body exceeds the configured byte limit.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+        X-Trace-ID:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    RateLimited:
+      description: Local API rate limit was exceeded.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+        X-Trace-ID:
+          $ref: '#/components/headers/TraceId'
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    InternalError:
+      description: Unexpected server failure with a safe public message.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+        X-Trace-ID:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+  schemas:
+    HealthData:
+      type: object
+      required: [status, service, storage]
+      properties:
+        status:
+          type: string
+          const: ok
+        service:
+          type: string
+          const: shopsense-api
+        storage:
+          type: string
+          const: sqlite
+    Product:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          name,
+          brand,
+          category,
+          priceCents,
+          description,
+          imageUrl,
+          imageAlt,
+          attributes,
+        ]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        brand:
+          type: string
+        category:
+          type: string
+        priceCents:
+          type: integer
+          minimum: 0
+        description:
+          type: string
+        imageUrl:
+          type: string
+          format: uri
+        imageAlt:
+          type: string
+        attributes:
+          type: array
+          items:
+            type: string
+        matchTags:
+          type: array
+          items:
+            type: string
+    SearchRequest:
+      type: object
+      additionalProperties: false
+      required: [query]
+      properties:
+        query:
+          type: string
+          minLength: 3
+          maxLength: 240
+    Recommendation:
+      type: object
+      required: [product, matchedDetails]
+      properties:
+        product:
+          $ref: '#/components/schemas/Product'
+        matchedDetails:
+          type: array
+          maxItems: 3
+          items:
+            type: string
+    SearchData:
+      type: object
+      required: [intentCategory, resultCount, results, summary, source]
+      properties:
+        intentCategory:
+          type: [string, 'null']
+        resultCount:
+          type: integer
+          minimum: 0
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Recommendation'
+        summary:
+          type: string
+        source:
+          type: string
+    FeedbackRequest:
+      type: object
+      additionalProperties: false
+      required: [productId, helpful]
+      properties:
+        productId:
+          type: string
+          minLength: 1
+          maxLength: 80
+        helpful:
+          type: boolean
+    FeedbackData:
+      type: object
+      required: [accepted]
+      properties:
+        accepted:
+          type: boolean
+          const: true
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, requestId]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            requestId:
+              type: string
