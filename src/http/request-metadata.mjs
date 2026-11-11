@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 const knownRoutes = new Set([
   '/api/v1/health',
-    '/api/v1/version',
+  '/api/v1/version',
   '/api/v1/catalog',
   '/api/v1/search',
   '/api/v1/feedback',
