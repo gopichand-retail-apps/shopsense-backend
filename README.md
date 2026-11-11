@@ -1,5 +1,7 @@
 # ShopSense API
 
+![CI](https://github.com/gopichand-retail-apps/shopsense-backend/actions/workflows/ci.yml/badge.svg)
+
 [Architecture guide](docs/architecture.md) — source map, workflows, contracts, data, security, and checks.
 
 ## Repository layout and deployment boundary
