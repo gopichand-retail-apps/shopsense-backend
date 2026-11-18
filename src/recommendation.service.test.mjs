@@ -22,9 +22,9 @@ function createService(t) {
   };
 }
 
-test('ranking returns only catalog products and matching source attributes', (t) => {
+test('ranking returns only catalog products and matching source attributes', async (t) => {
   const { service, repository } = createService(t);
-  const result = service.recommend('a light pack for weekend trails');
+  const result = await service.recommend('a light pack for weekend trails');
   const product = repository.getProduct(result.results[0].product.id);
 
   assert.equal(result.intentCategory, 'bags');
@@ -41,7 +41,7 @@ test('ranking returns only catalog products and matching source attributes', (t)
   assert.ok(result.summary.includes(String(result.results.length)));
 });
 
-test('stores a keyed query fingerprint without persisting the original prompt', () => {
+test('stores a keyed query fingerprint without persisting the original prompt', async () => {
   const model = loadModel();
   const query = 'quiet headphones for focused work';
   const queryHashKey = Buffer.from('shopsense-test-key');
@@ -61,7 +61,7 @@ test('stores a keyed query fingerprint without persisting the original prompt', 
     .update(query)
     .digest('hex');
 
-  const result = service.recommend(query);
+  const result = await service.recommend(query);
 
   assert.equal(result.results[0].product.id, 'studio-headphones');
   assert.equal(result.results[0].product.matchTags, undefined);
@@ -72,18 +72,18 @@ test('stores a keyed query fingerprint without persisting the original prompt', 
   assert.ok(recordedQuery.resultCount > 0);
 });
 
-test('category intent narrows recommendations to that category', (t) => {
+test('category intent narrows recommendations to that category', async (t) => {
   const { service } = createService(t);
-  const result = service.recommend('fragrance-free care for dry skin');
+  const result = await service.recommend('fragrance-free care for dry skin');
 
   assert.equal(result.intentCategory, 'beauty');
   assert.ok(result.results.length > 0);
   assert.ok(result.results.every((item) => item.product.category === 'beauty'));
 });
 
-test('category intent supplies a label when no product details match', (t) => {
+test('category intent supplies a label when no product details match', async (t) => {
   const { service, model } = createService(t);
-  const result = service.recommend('home');
+  const result = await service.recommend('home');
   const categoryLabel = model.categories.find(
     (category) => category.id === 'home',
   )?.label;
@@ -93,9 +93,11 @@ test('category intent supplies a label when no product details match', (t) => {
   assert.deepEqual(result.results[0].matchedDetails, [categoryLabel]);
 });
 
-test('unmatched requests return no fabricated product details', (t) => {
+test('unmatched requests return no fabricated product details', async (t) => {
   const { service, model } = createService(t);
-  const result = service.recommend('a purple titanium telescope for whales');
+  const result = await service.recommend(
+    'a purple titanium telescope for whales',
+  );
 
   assert.equal(result.results.length, 0);
   assert.equal(
@@ -123,7 +125,7 @@ test('uses category IDs when localized category copy is missing', () => {
   assert.equal(inferIntent('bags', model).categoryId, 'bags');
 });
 
-test('matches query prefixes contained by catalog tags and keeps sorting deterministic', () => {
+test('matches query prefixes contained by catalog tags and keeps sorting deterministic', async () => {
   const model = loadModel();
   const repository = {
     listProducts: () => [
@@ -155,7 +157,7 @@ test('matches query prefixes contained by catalog tags and keeps sorting determi
     recordQuery: () => {},
   };
   const service = createRecommendationService({ repository, model });
-  const results = service.recommend('widgets');
+  const results = await service.recommend('widgets');
 
   assert.deepEqual(
     results.results.map((item) => item.product.id),
@@ -164,7 +166,7 @@ test('matches query prefixes contained by catalog tags and keeps sorting determi
   assert.deepEqual(results.results[0].matchedDetails, ['widget']);
 });
 
-test('returns no invented details when a matching product has an unlisted category', () => {
+test('returns no invented details when a matching product has an unlisted category', async () => {
   const model = loadModel();
   const repository = {
     listProducts: () => [
@@ -183,9 +185,10 @@ test('returns no invented details when a matching product has an unlisted catego
     ],
     recordQuery: () => {},
   };
-  const result = createRecommendationService({ repository, model }).recommend(
-    'marble',
-  );
+  const result = await createRecommendationService({
+    repository,
+    model,
+  }).recommend('marble');
 
   assert.equal(result.results.length, 1);
   assert.deepEqual(result.results[0].matchedDetails, []);

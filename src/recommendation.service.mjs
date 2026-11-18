@@ -1,4 +1,11 @@
 import { createHmac, randomBytes } from 'node:crypto';
+import {
+  matchesFilters,
+  parseCatalogQuery,
+  refineCatalogIntent,
+  expandShoppingNeed,
+  matchesShoppingNeed,
+} from './catalog/search-query.mjs';
 
 function normalizeText(value) {
   return value
@@ -8,6 +15,7 @@ function normalizeText(value) {
 }
 
 function inferIntent(query, model) {
+  const filters = parseCatalogQuery(query);
   const normalized = normalizeText(query);
   const tokens = normalized.match(/[a-z0-9]+/g) ?? [];
   const usefulTokens = [
@@ -24,7 +32,11 @@ function inferIntent(query, model) {
     );
     return terms.some((term) => normalized.includes(term));
   });
-  return { categoryId: category?.id ?? null, tokens: usefulTokens };
+  return expandShoppingNeed(normalized, {
+    categoryId: filters.categoryId ?? category?.id ?? null,
+    tokens: usefulTokens,
+    filters,
+  });
 }
 
 function scoreProduct(product, intent) {
@@ -90,27 +102,33 @@ export function createRecommendationService({
   model,
   queryHashKey = randomBytes(32),
 }) {
+  async function retrieve(query, filters) {
+    const intent = refineCatalogIntent(inferIntent(query, model), filters);
+    const products = await retrieveCandidates(repository, intent);
+    const ranked = products
+      .filter((product) => matchesFilters(product, intent.filters))
+      .filter((product) => matchesShoppingNeed(product, intent))
+      .map((product) => scoreProduct(product, intent))
+      .filter((result) => result.score > 0)
+      .sort(
+        (left, right) =>
+          right.score - left.score ||
+          left.product.name.localeCompare(right.product.name),
+      );
+    return { intent, total: ranked.length, ranked: ranked.slice(0, 36) };
+  }
   return {
-    recommend(query) {
-      const intent = inferIntent(query, model);
-      const results = repository
-        .listProducts(intent.categoryId)
-        .map((product) => scoreProduct(product, intent))
-        .filter((result) => result.score > 0)
-        .sort(
-          (left, right) =>
-            right.score - left.score ||
-            left.product.name.localeCompare(right.product.name),
-        )
+    retrieve,
+    async recommend(query, filters) {
+      const { intent, ranked, total } = await retrieve(query, filters);
+      const results = ranked
         .slice(0, model.search.resultLimit)
         .map((result) => ({
           product: { ...result.product, matchTags: undefined },
           matchedDetails: explainMatch(result, intent, model),
         }));
-      const queryHash = createHmac('sha256', queryHashKey)
-        .update(normalizeText(query))
-        .digest('hex');
-      repository.recordQuery({
+      const queryHash = fingerprintQuery(query, queryHashKey);
+      await repository.recordQuery({
         queryHash,
         intentCategory: intent.categoryId,
         resultCount: results.length,
@@ -121,9 +139,22 @@ export function createRecommendationService({
         results,
         summary: createResultSummary(results.length, query, model),
         source: model.copy.localCatalogSource,
+        totalMatches: total,
+        appliedFilters: intent.filters,
       };
     },
   };
+}
+
+async function retrieveCandidates(repository, intent) {
+  if (intent.matchesNone) return [];
+  return repository.retrieveProducts
+    ? repository.retrieveProducts(intent)
+    : repository.listProducts(intent.categoryId);
+}
+
+function fingerprintQuery(query, key) {
+  return createHmac('sha256', key).update(normalizeText(query)).digest('hex');
 }
 
 export { inferIntent, scoreProduct };

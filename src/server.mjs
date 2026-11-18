@@ -8,14 +8,14 @@ import { handleApiRequest } from './http/request-handler.mjs';
 import { createRecommendationService } from './recommendation.service.mjs';
 import { createRateLimiter } from './services/rate-limiter.mjs';
 import { parseShopSenseModel } from './types/model.schema.mjs';
+import { readAiConfiguration } from './ai/configuration.mjs';
+import { createAiRecommendations } from './ai/recommendations.mjs';
+import { withStoreLayout } from './catalog/store-layout.mjs';
 
 export { routeTemplate } from './http/request-metadata.mjs';
 
 const modelPath = fileURLToPath(
-  new URL(
-    '../../shopsense-frontend/public/shopsense-ai-model.json',
-    import.meta.url,
-  ),
+  new URL('../data/shopsense-ai-model.json', import.meta.url),
 );
 const allowedOriginsSchema = z.array(z.string().url()).min(1);
 
@@ -38,6 +38,10 @@ export function createApiServer({
   databasePath = 'data/shopsense.sqlite',
   model: modelEnvelope = loadModelEnvelope(),
   allowedOrigins: originOverride,
+  aiConfiguration = readAiConfiguration(),
+  recommendationProvider,
+  catalogProducts = [],
+  repository: repositoryOverride,
 } = {}) {
   const model = parseShopSenseModel(modelEnvelope);
   const allowedOrigins = allowedOriginsSchema.parse(
@@ -50,8 +54,18 @@ export function createApiServer({
     limit: Number(process.env.API_RATE_LIMIT_MAX ?? 120),
     windowMs: Number(process.env.API_RATE_LIMIT_WINDOW_MS ?? 60_000),
   });
-  const repository = createCatalogRepository({ databasePath, model });
-  const recommendations = createRecommendationService({ repository, model });
+  const repository = withStoreLayout(
+    repositoryOverride ??
+      createCatalogRepository({ databasePath, model, catalogProducts }),
+  );
+  const local = createRecommendationService({ repository, model });
+  const recommendations = createAiRecommendations({
+    repository,
+    model,
+    local,
+    configuration: aiConfiguration,
+    provider: recommendationProvider,
+  });
   const server = createServer((request, response) => {
     void handleApiRequest({
       request,
@@ -72,10 +86,14 @@ export function createApiServer({
 
 function closeApiServer(server, repository) {
   return new Promise((resolveClose, reject) => {
-    server.close((error) => {
-      repository.close();
-      if (error) reject(error);
-      else resolveClose();
+    server.close(async (error) => {
+      try {
+        await repository.close();
+        if (error) reject(error);
+        else resolveClose();
+      } catch (closeError) {
+        reject(closeError);
+      }
     });
     server.closeAllConnections();
   });

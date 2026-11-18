@@ -5,10 +5,7 @@ import { parseShopSenseModel } from './model.schema.mjs';
 
 const envelope = JSON.parse(
   await readFile(
-    new URL(
-      '../../../shopsense-frontend/public/shopsense-ai-model.json',
-      import.meta.url,
-    ),
+    new URL('../../data/shopsense-ai-model.json', import.meta.url),
     'utf8',
   ),
 );

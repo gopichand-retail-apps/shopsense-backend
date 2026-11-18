@@ -1,0 +1,17 @@
+{
+  "id": "shopsense-virtual-01",
+  "version": 1,
+  "name": "ShopSense virtual store",
+  "aisles": [
+    { "id": "A1", "label": "Women's clothing", "category": "apparel", "audience": "women", "racks": ["Dresses", "Shirts", "Pants", "Shoes"] },
+    { "id": "A2", "label": "Men's clothing", "category": "apparel", "audience": "men", "racks": ["Dresses and tunics", "Shirts", "Pants", "Shoes"] },
+    { "id": "A3", "label": "Kids' clothing", "category": "apparel", "audience": "kids", "racks": ["Dresses", "Shirts", "Pants", "Shoes"] },
+    { "id": "A4", "label": "Clothing and layers", "category": "apparel", "audience": "unisex", "racks": ["Layers"] },
+    { "id": "B1", "label": "Bags and travel", "category": "bags", "racks": ["Backpacks and daypacks"] },
+    { "id": "E1", "label": "Audio", "category": "audio", "racks": ["Headphones", "Earbuds"] },
+    { "id": "H1", "label": "Home and kitchen", "category": "home", "racks": ["Mugs and kitchenware"] },
+    { "id": "O1", "label": "Outdoor essentials", "category": "outdoors", "racks": ["Water bottles"] },
+    { "id": "X1", "label": "Accessories", "category": "accessories", "racks": ["Sunglasses and accessories"] },
+    { "id": "S1", "label": "Skin care", "category": "beauty", "racks": ["Skin care"] }
+  ]
+}

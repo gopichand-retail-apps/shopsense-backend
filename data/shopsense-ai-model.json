@@ -1,0 +1,527 @@
+{
+  "version": 1,
+  "appId": "shopsense-ai",
+  "locale": "en-US",
+  "messages": {
+    "eyebrow": "Your shopping assistant",
+    "releaseVersion": "Version",
+    "headline": "Find what\nyou need.",
+    "description": "Looking for a particular color, a gift, or something for your next trip? Describe it, compare your options, and save your favorites.",
+    "searchLabel": "What are you looking for?",
+    "searchPlaceholder": "Try “a light pack for weekend trails”",
+    "searchAction": "Find products",
+    "searching": "Finding your products",
+    "cancelSearch": "Cancel search",
+    "refineSearch": "Refine your search",
+    "audienceFilter": "Collection",
+    "anyAudience": "All collections",
+    "audience_women": "Women",
+    "audience_men": "Men",
+    "audience_kids": "Kids",
+    "audience_unisex": "Unisex",
+    "colorFilter": "Color",
+    "anyColor": "Any color",
+    "color_black": "Black",
+    "color_white": "White",
+    "color_navy": "Navy",
+    "color_red": "Red",
+    "color_green": "Green",
+    "color_blue": "Blue",
+    "budgetFilter": "Budget",
+    "anyPrice": "Any price",
+    "budget_2500": "$25 or less",
+    "budget_5000": "$50 or less",
+    "budget_10000": "$100 or less",
+    "clearFilters": "Clear filters",
+    "recommendationCount": "Showing {shown} of {total} matches",
+    "productDetails": "At a glance",
+    "imageUnavailable": "Photo unavailable",
+    "styleReference": "Style reference",
+    "photoCredit": "Photo: {author}",
+    "savedDeviceNotice": "Your saved list stays in this browser.",
+    "searchPrivacy": "How search and voice use your data",
+    "storeGuide": "Where to find it: store guide",
+    "virtualStoreNotice": "This is our virtual store layout. Product cards show the assigned aisle, rack, and shelf; these locations do not represent a physical retailer.",
+    "storeGuideError": "The store guide could not be loaded. Your search and saved products are still available.",
+    "storeGuideLoading": "Loading the store guide",
+    "storeLayoutLabel": "Virtual store aisles and racks",
+    "storeEntrance": "Entrance and main walkway",
+    "aisleLabel": "Aisle {aisle}",
+    "productLocation": "Aisle {aisle} · Rack {rack} · Shelf {shelf}",
+    "aiSearchReady": "AI search is ready. Describe what you need and select Find products.",
+    "clearSearch": "Clear search",
+    "discover": "Discover",
+    "saved": "Saved list",
+    "savedTitle": "Your saved list",
+    "savedDescription": "Products you have kept for a closer look.",
+    "emptySaved": "Save a product to keep it here.",
+    "quickFinds": "A few places to start",
+    "resultsTitle": "Picked for your search",
+    "resultCount": "catalog matches",
+    "resultsFound": "Here are {count} products to compare.",
+    "noResultsFor": "No catalog matches found for “{query}”. Try a different need or feature.",
+    "groundedIn": "Why it fits",
+    "compare": "Compare",
+    "removeComparison": "Remove comparison",
+    "compareSelected": "Compare selected",
+    "compareTitle": "Side-by-side",
+    "compareHint": "Choose up to two products to compare.",
+    "saveProduct": "Save product",
+    "removeSaved": "Remove from saved list",
+    "savedStatus": "Saved",
+    "feedbackQuestion": "Was this recommendation useful?",
+    "feedbackHelpful": "Helpful",
+    "feedbackNotRelevant": "Not for me",
+    "feedbackReceived": "Thanks. Your feedback helps improve catalog discovery.",
+    "noMatchesTitle": "No close matches yet",
+    "noMatchesDescription": "Try a different material, use, or product category.",
+    "emptyTitle": "What would make it a good fit?",
+    "emptyDescription": "Describe a need, a setting, or a feature and start exploring.",
+    "loadError": "The catalog could not be loaded.",
+    "searchError": "Search could not be completed. Try again.",
+    "feedbackError": "Feedback could not be saved.",
+    "retry": "Try again",
+    "backToDiscover": "Back to discovery",
+    "themeLabel": "Appearance",
+    "lightTheme": "Light mode",
+    "darkTheme": "Dark mode",
+    "themeToggle": "Toggle light and dark mode",
+    "catalogCount": "Products in catalog",
+    "catalogGrounding": "Recommendations use product names, categories, and attributes from the current catalog.",
+    "primaryNavigation": "Primary navigation",
+    "openNavigation": "Open navigation",
+    "closeNavigation": "Close navigation",
+    "serviceConnected": "Ready to shop",
+    "serviceUnavailable": "Shopping is temporarily unavailable",
+    "offlineNotice": "Your device is offline. Catalog searches and feedback need a connection; your current search remains on this page.",
+    "catalogSource": "Current catalog",
+    "catalogTitle": "Browse the catalog",
+    "allCategories": "All categories",
+    "filterCategories": "Filter product categories",
+    "searchGuidance": "Include a product, color, occasion, or budget. Filters narrow your request.",
+    "searchTooShort": "Enter at least 3 characters to search.",
+    "searchTooLong": "Shorten your search and try again.",
+    "loadingCatalog": "Loading catalog products",
+    "compareLimit": "Compare up to two products at a time.",
+    "clearComparison": "Clear comparison selection",
+    "emptySavedDescription": "Save products from discovery to see them here.",
+    "footerNote": "Catalog details are supplied by the current product catalog.",
+    "errors": {
+      "invalidRequest": "The request could not be understood.",
+      "invalidSearch": "Enter a search of 3 to 240 characters.",
+      "notFound": "The requested catalog item was not found.",
+      "originNotAllowed": "This application origin is not allowed.",
+      "payloadTooLarge": "The request is larger than the allowed limit.",
+      "rateLimited": "Too many requests. Please wait a moment and try again.",
+      "server": "The request could not be completed. Try again."
+    },
+    "price": "Price",
+    "category": "Category",
+    "materials": "Materials and details",
+    "compareEmpty": "Choose one more product to compare.",
+    "compareClose": "Close comparison",
+    "browseSaved": "Browse discovery",
+    "saveComplete": "Added to your saved list.",
+    "removeComplete": "Removed from your saved list.",
+    "queryLabel": "Your search",
+    "matchDetails": "Matched catalog details",
+    "voiceStart": "Use microphone for voice input",
+    "voiceStop": "Stop voice input",
+    "voiceListening": "Listening. Speak your product request.",
+    "voiceUnsupported": "Voice input is not supported in this browser. Type your search instead.",
+    "voiceDenied": "Microphone access was denied. Allow it in browser settings, or type your search.",
+    "voiceNoSpeech": "No speech was detected. Try again or type your search.",
+    "voiceError": "Voice input could not be completed. Try again or type your search.",
+    "voicePrivacy": "Voice uses your browser's speech service, which may send audio to its provider. Review the transcript, then select Find products. Audio is not stored by ShopSense.",
+    "loadMoreProducts": "Load more products",
+    "sampleCatalogNotice": "Virtual store with illustrative merchandise. Real merchant inventory and checkout are not connected.",
+    "geminiProviderLabel": "Selected with Google Gemini",
+    "ollamaProviderLabel": "Selected with local Ollama",
+    "aiSearchLabel": "Use AI to understand my request",
+    "aiSearchDisclosure": "Selecting Find products sends your request and matching product details to our AI provider. Google may use free-tier content to improve its products. Keep personal information out of your search. Prices and product details come from this store's catalog.",
+    "aiSearchUnavailable": "AI search is currently unavailable. Catalog search, comparisons, and saved lists still work.",
+    "aiSearchUsed": "Selected for your request, with details from this store's catalog.",
+    "aiSearchFallback": "Our AI assistant is temporarily unavailable. These are matching catalog items; some preferences may not be reflected. You can refine your search or try again.",
+    "catalogSearchUsed": "Catalog keyword search. AI was not used.",
+    "noProvider": "Find products, compare catalog details, and keep a saved list on this device.",
+    "localCatalogSource": "Store catalog",
+    "categories": {
+      "bags": "Bags and travel",
+      "audio": "Audio",
+      "home": "Home and kitchen",
+      "apparel": "Apparel",
+      "outdoors": "Outdoor essentials",
+      "accessories": "Accessories",
+      "beauty": "Skin care"
+    },
+    "intents": {
+      "bags": "Carrying and travel",
+      "audio": "Sound and focus",
+      "home": "Home and kitchen",
+      "apparel": "Clothing and layers",
+      "outdoors": "Outdoor use",
+      "accessories": "Personal accessories",
+      "beauty": "Skin care"
+    }
+  },
+  "data": {
+    "app": {
+      "name": "ShopSense AI",
+      "descriptor": "Catalog discovery",
+      "description": "Find products that fit your needs, with every recommendation grounded in catalog details.",
+      "apiBaseUrl": "/api/v1",
+      "allowedOrigin": "http://127.0.0.1:5801",
+      "allowedOrigins": [
+        "http://127.0.0.1:5801",
+        "http://localhost:5801"
+      ],
+      "currency": "USD",
+      "themeStorageKey": "shopsense-theme",
+      "savedStorageKey": "shopsense-saved-products",
+      "defaultTheme": "light"
+    },
+    "navigation": [
+      {
+        "id": "discover",
+        "label": "Discover",
+        "icon": "Sparkles"
+      },
+      {
+        "id": "saved",
+        "label": "Saved list",
+        "icon": "Bookmark"
+      }
+    ],
+    "search": {
+      "maximumQueryCharacters": 240,
+      "maximumBodyBytes": 8192,
+      "resultLimit": 6,
+      "stopWords": [
+        "a",
+        "an",
+        "the",
+        "for",
+        "with",
+        "and",
+        "that",
+        "this",
+        "under",
+        "around",
+        "something",
+        "looking",
+        "want",
+        "need",
+        "find",
+        "show",
+        "me",
+        "my",
+        "is",
+        "to",
+        "of",
+        "in",
+        "on"
+      ]
+    },
+    "quickPrompts": [
+      "A light pack for weekend trails",
+      "Quiet headphones for focused work",
+      "A simple pour-over setup for a small kitchen",
+      "Fragrance-free care for dry skin"
+    ],
+    "categories": [
+      {
+        "id": "bags",
+        "label": "Bags and travel",
+        "aliases": [
+          "bag",
+          "bags",
+          "pack",
+          "backpack",
+          "daypack",
+          "crossbody"
+        ]
+      },
+      {
+        "id": "audio",
+        "label": "Audio",
+        "aliases": [
+          "headphones",
+          "headphone",
+          "sound",
+          "earbuds"
+        ]
+      },
+      {
+        "id": "home",
+        "label": "Home and kitchen",
+        "aliases": [
+          "kitchen",
+          "coffee",
+          "pour-over",
+          "brewer"
+        ]
+      },
+      {
+        "id": "apparel",
+        "label": "Apparel",
+        "aliases": [
+          "clothing",
+          "cardigan",
+          "sweater",
+          "layer"
+        ]
+      },
+      {
+        "id": "outdoors",
+        "label": "Outdoor essentials",
+        "aliases": [
+          "outdoor",
+          "hiking",
+          "trail",
+          "camping",
+          "bottle",
+          "hydration"
+        ]
+      },
+      {
+        "id": "accessories",
+        "label": "Accessories",
+        "aliases": [
+          "sunglasses",
+          "accessory",
+          "polarized"
+        ]
+      },
+      {
+        "id": "beauty",
+        "label": "Skin care",
+        "aliases": [
+          "skincare",
+          "skin care",
+          "face oil",
+          "fragrance-free"
+        ]
+      }
+    ],
+    "seed": {
+      "version": 1,
+      "products": [
+        {
+          "id": "ridge-daypack",
+          "name": "Ridge Daypack",
+          "brand": "Northline",
+          "category": "bags",
+          "priceCents": 7800,
+          "description": "An easy-carry pack for everyday movement and short trails.",
+          "imageUrl": "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=900&q=85",
+          "imageAlt": "Olive daypack against a neutral outdoor setting",
+          "attributes": [
+            "18 liter capacity",
+            "Recycled ripstop shell",
+            "Water-resistant finish",
+            "Padded laptop sleeve"
+          ],
+          "matchTags": [
+            "backpack",
+            "daypack",
+            "hiking",
+            "trail",
+            "outdoors",
+            "lightweight",
+            "travel",
+            "commute",
+            "recycled",
+            "water-resistant"
+          ]
+        },
+        {
+          "id": "everyday-crossbody",
+          "name": "Everyday Crossbody",
+          "brand": "Common Thread",
+          "category": "bags",
+          "priceCents": 5600,
+          "description": "A compact hands-free carry for daily essentials.",
+          "imageUrl": "https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=900&q=85",
+          "imageAlt": "Structured brown crossbody bag",
+          "attributes": [
+            "Adjustable strap",
+            "Recycled canvas lining",
+            "Two interior pockets",
+            "Zip closure"
+          ],
+          "matchTags": [
+            "crossbody",
+            "hands-free",
+            "compact",
+            "commute",
+            "travel",
+            "canvas",
+            "everyday",
+            "phone"
+          ]
+        },
+        {
+          "id": "studio-headphones",
+          "name": "Studio Headphones",
+          "brand": "Form Audio",
+          "category": "audio",
+          "priceCents": 12900,
+          "description": "Over-ear wireless listening with a focused, comfortable fit.",
+          "imageUrl": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=900&q=85",
+          "imageAlt": "Over-ear headphones on a warm neutral background",
+          "attributes": [
+            "Wireless Bluetooth",
+            "Active noise reduction",
+            "Fold-flat earcups",
+            "Up to 30 hours playback"
+          ],
+          "matchTags": [
+            "headphones",
+            "audio",
+            "noise-cancelling",
+            "quiet",
+            "focus",
+            "work",
+            "wireless",
+            "music",
+            "commute"
+          ]
+        },
+        {
+          "id": "stoneware-pour-over",
+          "name": "Stoneware Pour-Over Set",
+          "brand": "Sunday Table",
+          "category": "home",
+          "priceCents": 4200,
+          "description": "A small-batch ceramic brewer and matching cup for a slower morning.",
+          "imageUrl": "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=900&q=85",
+          "imageAlt": "Pour-over coffee beside a ceramic cup",
+          "attributes": [
+            "Glazed stoneware",
+            "Reusable stainless filter",
+            "Single-cup size",
+            "Dishwasher safe"
+          ],
+          "matchTags": [
+            "coffee",
+            "pour-over",
+            "ceramic",
+            "stoneware",
+            "small kitchen",
+            "kitchen",
+            "morning",
+            "reusable",
+            "gift"
+          ]
+        },
+        {
+          "id": "cloud-knit-cardigan",
+          "name": "Cloud Knit Cardigan",
+          "brand": "Fieldwork",
+          "category": "apparel",
+          "priceCents": 11200,
+          "description": "A soft, mid-weight layer designed for cool mornings and long evenings.",
+          "imageUrl": "https://images.unsplash.com/photo-1576566588028-4147f3842f27?auto=format&fit=crop&w=900&q=85",
+          "imageAlt": "Soft knit cardigan folded on a clean surface",
+          "attributes": [
+            "Organic cotton blend",
+            "Mid-weight knit",
+            "Relaxed fit",
+            "Two front pockets"
+          ],
+          "matchTags": [
+            "cardigan",
+            "knit",
+            "soft",
+            "warm",
+            "layering",
+            "organic cotton",
+            "clothing",
+            "apparel",
+            "cool weather"
+          ]
+        },
+        {
+          "id": "trail-bottle",
+          "name": "Trail Bottle",
+          "brand": "Northline",
+          "category": "outdoors",
+          "priceCents": 3400,
+          "description": "A durable insulated bottle for walks, rides, and long days outside.",
+          "imageUrl": "https://images.unsplash.com/photo-1602143407151-7111542de6e8?auto=format&fit=crop&w=900&q=85",
+          "imageAlt": "Reusable insulated bottle in a muted color",
+          "attributes": [
+            "Stainless steel",
+            "Double-wall insulation",
+            "Leak-resistant cap",
+            "750 milliliter capacity"
+          ],
+          "matchTags": [
+            "bottle",
+            "hydration",
+            "hiking",
+            "trail",
+            "outdoors",
+            "reusable",
+            "insulated",
+            "stainless steel",
+            "cycling"
+          ]
+        },
+        {
+          "id": "sunline-sunglasses",
+          "name": "Sunline Sunglasses",
+          "brand": "Common Thread",
+          "category": "accessories",
+          "priceCents": 6900,
+          "description": "Lightweight everyday frames with polarized lenses for bright days.",
+          "imageUrl": "https://images.unsplash.com/photo-1511499767150-a48a237f0083?auto=format&fit=crop&w=900&q=85",
+          "imageAlt": "Sunglasses with dark lenses resting on a neutral surface",
+          "attributes": [
+            "Polarized lenses",
+            "UV400 protection",
+            "Recycled acetate frame",
+            "Protective sleeve included"
+          ],
+          "matchTags": [
+            "sunglasses",
+            "polarized",
+            "sun",
+            "travel",
+            "outdoors",
+            "lightweight",
+            "accessories",
+            "uv protection"
+          ]
+        },
+        {
+          "id": "calm-face-oil",
+          "name": "Calm Face Oil",
+          "brand": "Morrow Botanics",
+          "category": "beauty",
+          "priceCents": 3800,
+          "description": "A simple facial oil made for a fragrance-free evening routine.",
+          "imageUrl": "https://images.unsplash.com/photo-1601049541289-9b1b7bbbfe19?auto=format&fit=crop&w=900&q=85",
+          "imageAlt": "Minimal glass skincare bottle with botanical details",
+          "attributes": [
+            "Fragrance free",
+            "Squalane and oat oil",
+            "Suitable for dry skin",
+            "Recyclable glass bottle"
+          ],
+          "matchTags": [
+            "skincare",
+            "skin care",
+            "dry skin",
+            "fragrance-free",
+            "face oil",
+            "gentle",
+            "botanical",
+            "recyclable",
+            "beauty"
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -3,10 +3,22 @@ import { apiFailure } from './errors.mjs';
 import { readJsonBody } from './json.mjs';
 import { setCorsHeaders } from './request-metadata.mjs';
 import { APP_VERSION } from '../app-version.mjs';
+import { storeLayout } from '../catalog/store-layout.mjs';
 
 const searchSchema = z
   .object({
     query: z.string().trim().min(3).max(240),
+    useAi: z.boolean().optional(),
+    filters: z
+      .object({
+        audience: z.enum(['women', 'men', 'kids', 'unisex']).optional(),
+        color: z
+          .enum(['black', 'white', 'navy', 'red', 'green', 'blue'])
+          .optional(),
+        maximumPriceCents: z.number().int().min(0).max(100_000_000).optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 const feedbackSchema = z
@@ -22,6 +34,10 @@ const handlers = new Map([
   ['GET /api/v1/catalog', handleCatalog],
   ['POST /api/v1/search', handleSearch],
   ['POST /api/v1/feedback', handleFeedback],
+  [
+    'GET /api/v1/store-layout',
+    () => ({ status: 200, body: { data: storeLayout } }),
+  ],
 ]);
 
 export async function routeApiRequest(context) {
@@ -66,14 +82,16 @@ export async function routeApiRequest(context) {
   return handler({ ...context, url });
 }
 
-function handleHealth() {
+async function handleHealth({ recommendations, repository }) {
   return {
     status: 200,
     body: {
       data: {
         status: 'ok',
         service: 'shopsense-api',
-        storage: 'sqlite',
+        storage: repository.storage,
+        catalogCount: await repository.countProducts(),
+        ai: recommendations.capabilities,
       },
     },
   };
@@ -86,7 +104,7 @@ function handleVersion() {
   };
 }
 
-function handleCatalog({ model, repository, requestId, url }) {
+async function handleCatalog({ model, repository, requestId, url }) {
   const category = url.searchParams.get('category');
   const validCategory =
     !category || model.categories.some((item) => item.id === category);
@@ -98,7 +116,33 @@ function handleCatalog({ model, repository, requestId, url }) {
       requestId,
     );
   }
-  return { status: 200, body: { data: repository.listProducts(category) } };
+  const pagination = parseCatalogPage(url);
+  if (!pagination)
+    return apiFailure(
+      400,
+      'INVALID_CATEGORY',
+      model.copy.errors.invalidRequest,
+      requestId,
+    );
+  return {
+    status: 200,
+    body: { data: await repository.catalogPage({ category, ...pagination }) },
+  };
+}
+
+function parseCatalogPage(url) {
+  const parsed = z
+    .object({
+      limit: z.coerce.number().int().min(1).max(100),
+      offset: z.coerce.number().int().min(0).max(1_000_000),
+      ids: z.array(z.string().min(1).max(80)).max(50),
+    })
+    .safeParse({
+      limit: url.searchParams.get('limit') ?? 24,
+      offset: url.searchParams.get('offset') ?? 0,
+      ids: url.searchParams.get('ids')?.split(',') ?? [],
+    });
+  return parsed.success ? parsed.data : null;
 }
 
 async function handleSearch({ model, recommendations, request, requestId }) {
@@ -117,7 +161,13 @@ async function handleSearch({ model, recommendations, request, requestId }) {
   }
   return {
     status: 200,
-    body: { data: recommendations.recommend(parsed.data.query) },
+    body: {
+      data: await recommendations.recommend(parsed.data.query, {
+        useAi: parsed.data.useAi,
+        filters: parsed.data.filters,
+        requestId,
+      }),
+    },
   };
 }
 
@@ -132,7 +182,7 @@ async function handleFeedback({ model, repository, request, requestId }) {
       requestId,
     );
   }
-  if (!repository.recordFeedback(parsed.data)) {
+  if (!(await repository.recordFeedback(parsed.data))) {
     return apiFailure(
       404,
       'PRODUCT_NOT_FOUND',

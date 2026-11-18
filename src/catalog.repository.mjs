@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
+import { catalogPage, retrieveProducts } from './catalog/sqlite-search.mjs';
+import { productSchema } from './types/model.schema.mjs';
 
 function transaction(database, work) {
   database.exec('BEGIN IMMEDIATE');
@@ -25,6 +27,9 @@ function mapProduct(row) {
     imageAlt: row.image_alt,
     attributes: JSON.parse(row.attributes_json),
     matchTags: JSON.parse(row.match_tags_json),
+    ...(row.color ? { color: row.color } : {}),
+    ...(row.audience ? { audience: row.audience } : {}),
+    ...(row.product_type ? { productType: row.product_type } : {}),
   };
 }
 
@@ -33,16 +38,44 @@ function getProduct(database, id) {
   return row ? mapProduct(row) : null;
 }
 
-export function createCatalogRepository({ databasePath, model }) {
+export function createCatalogRepository({
+  databasePath,
+  model,
+  catalogProducts = [],
+}) {
   const database = new DatabaseSync(databasePath);
   try {
     initializeSchema(database);
-    seedCatalog(database, model);
+    addCatalogFacets(database);
+    seedCatalog(database, {
+      ...model,
+      seed: {
+        ...model.seed,
+        products: [
+          ...model.seed.products,
+          ...catalogProducts.map((product) => productSchema.parse(product)),
+        ],
+      },
+    });
   } catch (error) {
     database.close();
     throw error;
   }
   return createRepository(database);
+}
+
+function addCatalogFacets(database) {
+  const columns = database
+    .prepare('PRAGMA table_info(products)')
+    .all()
+    .map((row) => row.name);
+  for (const name of ['color', 'audience', 'product_type']) {
+    if (!columns.includes(name))
+      database.exec(`ALTER TABLE products ADD COLUMN ${name} TEXT`);
+  }
+  database.exec(
+    'CREATE INDEX IF NOT EXISTS products_facets_idx ON products(product_type, color, audience)',
+  );
 }
 
 function initializeSchema(database) {
@@ -75,6 +108,10 @@ function initializeSchema(database) {
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS query_sessions_created_idx ON query_sessions(created_at);
+    CREATE TABLE IF NOT EXISTS ai_daily_usage (
+      day TEXT PRIMARY KEY,
+      request_count INTEGER NOT NULL CHECK (request_count >= 0)
+    );
     CREATE TABLE IF NOT EXISTS recommendation_feedback (
       id TEXT PRIMARY KEY,
       product_id TEXT NOT NULL REFERENCES products(id),
@@ -91,8 +128,8 @@ function seedCatalog(database, model) {
   const insertProduct = database.prepare(`
     INSERT OR IGNORE INTO products (
       id, name, brand, category, price_cents, description, image_url, image_alt,
-      attributes_json, match_tags_json, display_order
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      attributes_json, match_tags_json, display_order, color, audience, product_type
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   transaction(database, () => {
@@ -112,6 +149,9 @@ function seedCatalog(database, model) {
         JSON.stringify(product.attributes),
         JSON.stringify(product.matchTags),
         index + 1,
+        product.color ?? null,
+        product.audience ?? null,
+        product.productType ?? null,
       );
     });
   });
@@ -120,13 +160,35 @@ function seedCatalog(database, model) {
 function createRepository(database) {
   return {
     listProducts: (category = null) => listProducts(database, category),
+    catalogPage: (options) => catalogPage(database, options, mapProduct),
+    retrieveProducts: (intent) =>
+      retrieveProducts(database, intent, mapProduct),
+    countProducts: () =>
+      Number(
+        database.prepare('SELECT COUNT(*) AS total FROM products').get().total,
+      ),
+    storage: 'sqlite',
     getProduct(id) {
       return getProduct(database, id);
     },
     recordQuery: (record) => writeQueryRecord(database, record),
     recordFeedback: (record) => writeFeedback(database, record),
+    reserveAiRequest: (day, limit) => reserveAiRequest(database, day, limit),
     close: () => database.close(),
   };
+}
+
+function reserveAiRequest(database, day, limit) {
+  const result = database
+    .prepare(
+      `
+    INSERT INTO ai_daily_usage (day, request_count) VALUES (?, 1)
+    ON CONFLICT(day) DO UPDATE SET request_count = request_count + 1
+    WHERE request_count < ?
+  `,
+    )
+    .run(day, limit);
+  return result.changes === 1;
 }
 
 function listProducts(database, category) {

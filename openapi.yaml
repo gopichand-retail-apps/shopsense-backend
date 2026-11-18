@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: ShopSense API
   version: 1.0.0
-  description: Local catalog search and grounded recommendations. No authentication is implemented.
+  description: Loopback paginated catalog and optional Gemini or Ollama selection. API authentication is not implemented.
 servers:
   - url: http://127.0.0.1:5802/api/v1
     description: Loopback-only local API
@@ -39,7 +39,7 @@ paths:
         - $ref: '#/components/parameters/Traceparent'
       responses:
         '200':
-          description: Service and SQLite readiness.
+          description: Service and selected database readiness.
           headers:
             X-Request-ID:
               $ref: '#/components/headers/RequestId'
@@ -67,6 +67,16 @@ paths:
           description: Optional category ID from the public content model.
           schema:
             type: string
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 24 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0, maximum: 1000000, default: 0 }
+        - in: query
+          name: ids
+          description: Up to 50 comma-separated product IDs, for saved/comparison resolution.
+          schema: { type: string }
       responses:
         '200':
           description: Catalog products and their stored attributes.
@@ -128,6 +138,43 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '413':
           $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /store-layout:
+    get:
+      summary: Read the versioned virtual-store aisle and rack guide
+      description: Source-controlled virtual layout. This is not a physical retailer or live inventory feed.
+      responses:
+        '200':
+          description: Current virtual-store layout.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [id, version, name, aisles]
+                    properties:
+                      id: { type: string }
+                      version: { type: integer, minimum: 1 }
+                      name: { type: string }
+                      aisles:
+                        type: array
+                        items:
+                          type: object
+                          required: [id, label, category, racks]
+                          properties:
+                            id: { type: string }
+                            label: { type: string }
+                            category: { type: string }
+                            audience: { type: string }
+                            racks: { type: array, items: { type: string } }
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '429':
           $ref: '#/components/responses/RateLimited'
         '500':
@@ -290,7 +337,14 @@ components:
           const: shopsense-api
         storage:
           type: string
-          const: sqlite
+          enum: [sqlite, postgres]
+        catalogCount: { type: integer, minimum: 0 }
+        ai:
+          type: object
+          required: [available, provider]
+          properties:
+            available: { type: boolean }
+            provider: { type: string, enum: [local, gemini, ollama] }
     Product:
       type: object
       additionalProperties: false
@@ -322,7 +376,7 @@ components:
           type: string
         imageUrl:
           type: string
-          format: uri
+          description: HTTPS image URL or root-relative checked-in catalog asset path.
         imageAlt:
           type: string
         attributes:
@@ -333,6 +387,30 @@ components:
           type: array
           items:
             type: string
+        color: { type: string, enum: [black, white, navy, red, green, blue] }
+        audience: { type: string, enum: [women, men, kids, unisex] }
+        productType: { type: string, maxLength: 40 }
+        location:
+          type: object
+          required: [storeId, layoutVersion, virtual, aisle, rack, shelf]
+          additionalProperties: false
+          properties:
+            storeId: { type: string }
+            layoutVersion: { type: integer, minimum: 1 }
+            virtual: { type: boolean, const: true }
+            aisle: { type: string }
+            rack: { type: string }
+            shelf: { type: integer, minimum: 1 }
+        imageCredit:
+          type: object
+          required: [kind, author, source, licenseUrl]
+          additionalProperties: false
+          properties:
+            kind: { type: string, const: style-reference }
+            author: { type: string, minLength: 1, maxLength: 240 }
+            source: { type: string, format: uri }
+            licenseUrl:
+              { type: string, const: 'https://www.pexels.com/license/' }
     SearchRequest:
       type: object
       additionalProperties: false
@@ -342,6 +420,19 @@ components:
           type: string
           minLength: 3
           maxLength: 240
+        useAi:
+          type: boolean
+          default: false
+          description: Request the configured server-side provider. The shopper UI sends true for every search. Omitted/false preserves API catalog-only compatibility. Failure returns labeled catalog fallback with HTTP 200.
+        filters:
+          type: object
+          additionalProperties: false
+          description: Intersect customer selections with query-derived restrictions before retrieval and AI. Conflicting requirements return no matches.
+          properties:
+            audience: { type: string, enum: [women, men, kids, unisex] }
+            color:
+              { type: string, enum: [black, white, navy, red, green, blue] }
+            maximumPriceCents: { type: integer, minimum: 0, maximum: 100000000 }
     Recommendation:
       type: object
       required: [product, matchedDetails]
@@ -350,7 +441,7 @@ components:
           $ref: '#/components/schemas/Product'
         matchedDetails:
           type: array
-          maxItems: 3
+          maxItems: 4
           items:
             type: string
     SearchData:
@@ -370,6 +461,36 @@ components:
           type: string
         source:
           type: string
+        totalMatches: { type: integer, minimum: 0 }
+        appliedFilters:
+          type: object
+          properties:
+            color: { type: [string, 'null'] }
+            audience: { type: [string, 'null'] }
+            productType: { type: [string, 'null'] }
+            categoryId: { type: [string, 'null'] }
+            excludedColors: { type: array, items: { type: string } }
+            minimumPriceCents: { type: [integer, 'null'] }
+            maximumPriceCents: { type: [integer, 'null'] }
+        assistance:
+          type: object
+          required: [status, provider]
+          properties:
+            status: { type: string, enum: [catalog, assisted, unavailable] }
+            provider: { type: string, enum: [local, gemini, ollama] }
+            reason:
+              type: string
+              enum:
+                [
+                  not_configured,
+                  busy,
+                  budget,
+                  timeout,
+                  quota,
+                  provider_error,
+                  invalid_response,
+                  catalog_limit,
+                ]
     FeedbackRequest:
       type: object
       additionalProperties: false
