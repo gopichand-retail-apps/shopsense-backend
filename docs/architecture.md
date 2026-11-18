@@ -1,6 +1,6 @@
 # ShopSense AI Backend Architecture
 
-Maintained in this independent Git repository at **docs/architecture.md**. Updated **2026-11-09**. The guide covers the implemented stack, interfaces, data model, operational limits, and release requirements.
+Maintained in this independent Git repository at **docs/architecture.md**. Updated **2026-11-17**. The guide covers the implemented stack, interfaces, data model, operational limits, and release requirements.
 
 ## Contents
 
@@ -23,7 +23,7 @@ Maintained in this independent Git repository at **docs/architecture.md**. Updat
 
 Catalog-grounded product discovery and comparison for shoppers.
 
-Deterministic catalog matching, explanations, comparisons, browser-local saved IDs/theme, query sessions, and feedback. No external LLM is connected.
+Deterministic catalog matching, explanations, comparisons, browser-local saved IDs/theme, query sessions, and feedback. Configured Gemini/Ollama selection is implemented behind a server-only provider and requested automatically by shopper searches with a visible data-use disclosure. Catalog search remains available without credentials.
 
 This repository owns the Node.js ESM API and SQLite state. UI rendering belongs to the separate frontend. The service validates and executes the domain operations described below.
 
@@ -31,7 +31,7 @@ There are two independent Git roots for this application, each with its own READ
 
 ### Product Boundary
 
-ShopSense AI supports catalog discovery and comparison for shoppers. Its local ranker is deterministic and only returns product data and matched attributes that exist in the catalog. There is no external recommendation provider, sign-in, or catalog-editor write endpoint in the current local implementation.
+ShopSense AI supports catalog discovery and comparison for shoppers. Its local ranker is deterministic and only returns product data and matched attributes that exist in the catalog. Gemini selection is optional and catalog-grounded; sign-in and catalog-editor write endpoints are not implemented.
 
 ## 2. Context, containers, and trust boundaries
 
@@ -39,7 +39,7 @@ ShopSense AI supports catalog discovery and comparison for shoppers. Its local r
 flowchart LR
   U["ShopSense AI user"] --> F["Next.js frontend - port 5801"]
   F -->|"API requests across an untrusted browser boundary"| A["Node.js ESM API - port 5802"]
-  A --> D["SQLite - app-owned local persistence"]
+  A --> D["Catalog repository - active private Postgres / default SQLite"]
   M["Validated public content model"] --> F
 ```
 
@@ -72,19 +72,20 @@ flowchart LR
     Validation[Allowed-origin and Zod validation]
     Ranking[Intent inference and ranking]
     Repository[Catalog repository]
-    SQLite[(API-owned SQLite)]
+    SQLite[(API-owned storage: Postgres or SQLite)]
+    BackendModel[Backend-owned content snapshot]
 
     Browser -->|Copy, filter labels, synthetic catalog| Model
     Browser -->|/api/v1 request, JSON, request ID| Web
     Web -->|Rewrite to selected API origin| API
-    API -->|Load seed model at startup| Model
+    BackendModel -->|Load validated snapshot at startup| API
     API --> Validation --> Ranking --> Repository
     Repository -->|Catalog reads, query fingerprints, feedback| SQLite
     SQLite --> Repository --> API
     API -->|Catalog-backed results and matched details| Browser
 ```
 
-Trust boundaries: browser-to-Next.js (same-origin requests), Next.js-to-API (loopback rewrite), and API-to-database (only the API opens SQLite). The API validates the forwarded origin, schemas, and bounded request bodies. CORS is not authorization. The future provider boundary is server-only and disabled locally.
+Trust boundaries: browser-to-Next.js (same-origin requests), Next.js-to-API (loopback rewrite), and API-to-database (only the API opens the selected Postgres or SQLite profile). The API validates the forwarded origin, schemas, and bounded request bodies. CORS is not authorization. The Gemini boundary is server-only, requires private backend configuration and is requested automatically by the shopper form, and has bounded requests and responses.
 
 ## 3. Source ownership and module map
 
@@ -241,7 +242,7 @@ flowchart TD
 ### Use-Case Preconditions, State, and Recovery
 
 These are the implemented local workflows; planned identity, editor, and
-provider integrations are not prerequisites and are not represented as current
+cross-app integrations are not prerequisites and are not represented as current
 behavior.
 
 | Use case                          | Actor and preconditions                                                             | State/data changes                                                                                                     | Failure and recovery                                                                                       |
@@ -303,16 +304,17 @@ The repository contract is [openapi.yaml](../openapi.yaml). Keep public paths, s
 
 | Method | Route              | Request                     | Result                                      |
 | ------ | ------------------ | --------------------------- | ------------------------------------------- |
-| GET    | `/api/v1/health`   | None                        | Service and SQLite readiness                |
+| GET    | `/api/v1/health`   | None                        | Service and selected-storage readiness                |
 | GET    | `/api/v1/catalog`  | Optional validated category | Catalog rows and stored attributes          |
-| POST   | `/api/v1/search`   | Bounded `{ query }`         | Ranked catalog products and matched details |
+| POST   | `/api/v1/search`   | Bounded query, useAi, facets         | Ranked catalog products and matched details |
 | POST   | `/api/v1/feedback` | `{ productId, helpful }`    | Persisted feedback acceptance               |
+| GET | `/api/v1/store-layout` | None | Versioned original virtual aisles and racks |
 
 Success responses use `{ data }`; failures use `{ error: { code, message, requestId } }`. The complete request/response contract is in [`shopsense-backend/openapi.yaml`](../openapi.yaml). `X-Request-ID` and `X-Trace-ID` are returned on responses; request IDs are included in structured logs. Request bodies and raw queries are not logged.
 
 ## 8. Security, privacy, and egress
 
-Current release limitation: **Shopper/catalog-editor identity and authorization are not established. Remote Unsplash images, formatting, generated-type ordering, and dialog-focus work remain. IT image smoke failed; do not label all checks passing.**
+Current release limitation: **Shopper/catalog-editor identity and authorization are not established. Most merchandise remains illustrative. Comparison focus trapping/restoration is verified; full accessibility remains unmeasured. Historical IT image smoke failed; a local pass does not establish production readiness.**
 
 ### Authorization and API Ownership Matrix
 
@@ -323,8 +325,8 @@ limit.
 
 | Route            | Current actor and authorization                                                             | Reads/writes                                                                                    | Expected failures and recovery                                                                                               |
 | ---------------- | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `GET /health`    | Any local caller; no identity check. Health is excluded from rate limiting.                 | Reports API/SQLite readiness; no domain write.                                                  | Safe internal error; restart/check local database if unavailable.                                                            |
-| `GET /catalog`   | Unauthenticated local browser or caller; optional category must exist in the public model.  | Reads catalog rows from API-owned SQLite.                                                       | `INVALID_CATEGORY`, `ORIGIN_NOT_ALLOWED`, or `RATE_LIMITED`; correct the filter or retry later.                              |
+| `GET /health`    | Any local caller; no identity check. Health is excluded from rate limiting.                 | Reports API/storage readiness; no domain write.                                                  | Safe internal error; restart/check local database if unavailable.                                                            |
+| `GET /catalog`   | Unauthenticated local browser or caller; optional category must exist in the public model.  | Reads catalog rows from the selected API-owned storage profile.                                                       | `INVALID_CATEGORY`, `ORIGIN_NOT_ALLOWED`, or `RATE_LIMITED`; correct the filter or retry later.                              |
 | `POST /search`   | Unauthenticated local browser or caller; strict JSON, bounded body, query length 3–240.     | Reads catalog; stores only a keyed fingerprint, inferred category, result count, and timestamp. | `INVALID_JSON`, `PAYLOAD_TOO_LARGE`, `INVALID_SEARCH`, `RATE_LIMITED`, or safe `INTERNAL_ERROR`; keep the query and retry.   |
 | `POST /feedback` | Unauthenticated local browser or caller; strict product ID and boolean; product must exist. | Reads product, then inserts minimal feedback.                                                   | `INVALID_FEEDBACK`, `PRODUCT_NOT_FOUND`, `RATE_LIMITED`, or safe `INTERNAL_ERROR`; retry the feedback action if appropriate. |
 | Other paths      | No route or elevated actor exists.                                                          | No domain read/write.                                                                           | Safe `NOT_FOUND` response.                                                                                                   |
@@ -337,14 +339,14 @@ health. It is not a distributed quota or identity control.
 
 | Integration or mode        | Current behavior                                                                                                                                                                            |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Product catalog            | Synthetic catalog seeded from the versioned public model into API-owned SQLite.                                                                                                             |
-| Recommendation provider    | No external LLM/provider is called. Ranking is deterministic and local.                                                                                                                     |
+| Product catalog            | Synthetic catalog owned by the API: active private Postgres profile, default SQLite; packaged backend content snapshot.                                                                                                             |
+| Recommendation provider    | Shopper searches request configured AI selection automatically; catalog IDs/evidence are validated before rendering, with explicit catalog fallback.                                                                                                                     |
 | Identity and authorization | Not implemented. No user/account or editor role is accepted.                                                                                                                                |
 | Mock mode                  | `NEXT_PUBLIC_IS_MOCK=true` selects the configured mock API origin. The local mock path still calls the same REST API and uses seeded synthetic data; it is not an in-browser fake response. |
 | Live mode                  | `NEXT_PUBLIC_IS_MOCK=false` selects `SHOPSENSE_REAL_API_URL`. E2E uses the isolated local API as the selected endpoint; this does not prove a production/third-party integration.           |
 | Telemetry                  | API emits JSON request/startup events with request/trace IDs, route template, method, status, duration, outcome, and safe error code. It omits request bodies and raw queries.              |
 
-Keep private credentials out of public models, browser bundles, logs, URLs, and source archives. The existing remote Unsplash image dependency remains; no external LLM is connected. Keep logs limited to the source-defined request/trace and safe aggregate fields. Backups, retention, deletion, and real-user ownership need explicit product/operations decisions before external exposure.
+Keep private credentials out of public models, browser bundles, logs, URLs, and source archives. The existing remote Unsplash image dependency remains; Gemini is server-only and requested automatically by the shopper form when configured; explicit fallback attribution remains. Keep logs limited to the source-defined request/trace and safe aggregate fields. Backups, retention, deletion, and real-user ownership need explicit product/operations decisions before external exposure.
 
 ## 9. Design, accessibility, and platform adapters
 
@@ -366,7 +368,7 @@ Configured npm scripts, from this repository with Node **24.15.0**; use `npm.cmd
 
 Install with `npm.cmd ci` and retain [package-lock.json](../package-lock.json). Registry access is required for a clean dependency installation. These commands describe the configured checks; execution results are listed in section 13.
 
-The API remains loopback-only. Direct-start storage is `data/shopsense.sqlite` relative to this repository. The adjacent `../shopsense-frontend/public/shopsense-ai-model.json` file is a required seed/content input; process environment variables are read, and a .env file is not loaded automatically.
+The API remains loopback-only. Direct-start storage is `data/shopsense.sqlite` relative to this repository. The backend-owned `data/shopsense-ai-model.json` is the seed/content input. The entrypoint loads ignored `.env.local`; explicit process environment variables take precedence.
 
 CI configuration is listed in section 3. Run the configured checks before merging or releasing. Deployment requires separate verification of the selected hosting environment.
 
@@ -376,10 +378,10 @@ CI configuration is listed in section 3. Run the configured checks before mergin
 
 - The application is a local modular monolith, not a set of independently
   deployed microservices. The frontend is a presentation/client-state boundary;
-  the API is the only SQLite client.
+  the API is the only application database client.
 - The backend request path is HTTP handler -> route/schema validation ->
   recommendation service -> repository. The ranker is a deterministic domain
-  service; it has no external model dependency.
+  service; it has no external model dependency on the default path; opted-in requests use the bounded Gemini adapter.
 - One strict `version/appId/locale/messages/data` model feeds frontend copy and
   synthetic seed data. Both frontend and backend validate it at their trust
   boundary. The old public architecture model and UI route are removed.
@@ -407,7 +409,7 @@ The two Git repositories remain separate. Each owns one maintained README and th
 | Capability                       | Acceptance                                                        | Owner/path                         | Current status                                                | Evidence                               | Risk                                                                                                                                                                                                                      |
 | -------------------------------- | ----------------------------------------------------------------- | ---------------------------------- | ------------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Repository-local architecture    | Guide available in this checkout and linked from README           | docs/architecture.md; README.md    | Documented and validated                                      | File, link, and diagram checks         | Keep documentation consistent with source changes                                                                                                                                                                         |
-| API composition and domain state | Preserve existing workflows and failure states                    | src/server.mjs and source map      | Implemented; application verification limits are listed below | Current source and existing app design | Shopper/catalog-editor identity and authorization are not established. Remote Unsplash images, formatting, generated-type ordering, and dialog-focus work remain. IT image smoke failed; do not label all checks passing. |
+| API composition and domain state | Preserve existing workflows and failure states                    | src/server.mjs and source map      | Implemented; application verification limits are listed below | Current source and existing app design | Shopper/catalog-editor identity and authorization are not established. Most merchandise remains illustrative. Comparison focus trapping/restoration is verified; full accessibility remains unmeasured. Historical IT image smoke failed; a local pass does not establish production readiness. |
 | Public deployment                | Verified identity, data durability, recovery, and hosted behavior | Existing deployment/API boundaries | Needs separate hardening/verification                         | No new hosted evidence                 | Local checks do not establish production readiness                                                                                                                                                                        |
 
 ## 13. Dated verification and limitations
@@ -417,7 +419,7 @@ Last documentation review: **2026-11-09**. The checks below distinguish document
 - Repository-local guide, README link, source-path references, section/contents anchors, and Mermaid syntax: passed documentation validation.
 - New application tests/builds, coverage, dependency audits, browser/device accessibility/performance, hosted CI, and Vercel deployment: **not rerun for the documentation updates**.
 - Frontend production builds passed on 2026-11-09 with Node 24.15.0. Build success does not establish that all application quality gates pass.
-- Outstanding baseline limit: Shopper/catalog-editor identity and authorization are not established. Remote Unsplash images, formatting, generated-type ordering, and dialog-focus work remain. IT image smoke failed; do not label all checks passing.
+- Historical outstanding baseline limit: Shopper/catalog-editor identity and authorization are not established. Remote Unsplash images and dialog-focus work remain; formatting and generated-type ordering were corrected on November 13, 2026. IT image smoke failed; do not label all checks passing.
 
 The baseline results below record earlier validation. Re-run the listed commands against the current revision before release.
 
@@ -452,12 +454,255 @@ for statements, branches, functions, and lines.
 
 Known gaps: no identity/role/record ownership, no catalog editor, no
 versioned SQLite migration or seed-update workflow, no distributed rate limit,
-no persistent HMAC key rotation, no TLS, and no real external provider. Keep
+no persistent HMAC key rotation or TLS. Gemini is implemented, but this does not establish hosted readiness. Keep
 both local services loopback-only and use synthetic data until these controls
 are implemented and verified.
 
 ## 14. Extension rules and companion repository
 
-Start with [README.md](../README.md) and this guide. The companion repository is [shopsense-frontend](https://github.com/gopichand-retail-apps/shopsense-frontend); clone the pair as siblings when using the existing local integration/model contract. This guide is inside the current repository and does not depend on a parent-folder architecture file to exist.
+Start with [README.md](../README.md) and this guide. The companion repository is [shopsense-frontend](https://github.com/gopichand-retail-apps/shopsense-frontend); clone the pair as siblings for the supplied combined local/E2E workflow and content authoring sync. Backend runtime and backend CI read the backend-owned content snapshot and do not require a sibling checkout. This guide is inside the current repository and does not depend on a parent-folder architecture file to exist.
 
 Update this guide when owned source, routes, persistence, identity, UI states, egress, or deployment behavior changes. Coordinate public contract changes with the companion repository and tests. Preserve existing data, run isolated checks with synthetic records, record failures, and review release and infrastructure changes before publication.
+
+## Catalog, voice, AI, and hosted release path - November 13, 2026
+
+This feature increment follows the archived reconstruction. Earlier numbered sections retain design and
+historical verification context; this section describes the current implementation. The UI and API remain on
+loopback with synthetic data; the active private profile uses hosted Supabase Postgres. No hosted UI/API
+deployment or customer account system is established.
+
+### How discovery works
+
+The catalog contains **308 products**: eight preserved originals plus 30 synthetic examples in each of ten
+families: dresses, shirts, pants, shoes, headphones, earbuds, bottles, mugs, sunglasses, and backpacks.
+Synthetic apparel covers women, men, and kids. Examples are labeled ShopSense Sample; an AirPods query
+maps to the earbuds type and does not establish genuine Apple inventory. Fifty original local SVG
+illustrations are reused across the 300 additions. The original remote image records remain unchanged.
+
+```mermaid
+flowchart LR
+    Voice[User starts microphone] --> Transcript[Browser speech transcript]
+    Transcript --> Review[Review or edit search text]
+    Text[Typed request] --> Review
+    Review --> API[Node API validates request]
+    API --> Facets[Parse color, audience, type and price]
+    Facets --> SQL[Parameterized database retrieval]
+    SQL --> Rank[Rank a bounded candidate set]
+    Rank --> Catalog[Catalog results]
+    Rank --> OptIn{Shopper opts into AI?}
+    OptIn -->|yes| Model[Gemini or loopback Ollama]
+    Model --> Ground[Validate IDs and exact stored evidence]
+    Ground --> UI[Render stored product records]
+    Catalog --> UI
+    Model -->|timeout or invalid output| Catalog
+```
+
+Explicit facets are applied before model selection. Tests verify that `black dress for men` returns only
+the two matching men's examples, while `black dress` matches six examples across apparel audiences.
+The parser handles documented aliases, price comparisons, and simple excluded colors; arbitrary complex
+language is not guaranteed. Missing stock is never invented. The local ranker works without credentials.
+SQLite retrieval caps its internal candidate pool at 2,000; ranking sends at most 36 candidates to Gemini
+or 12 to Ollama. This implementation has not been load-tested at marketplace scale.
+
+Browsing requests **24 products per page**, with a maximum API page size of 100. Saved IDs are resolved
+in separate bounded requests, so saving a search result outside the first page survives reload. The UI
+does not download the whole catalog. Search returns at most the configured six recommendations and
+also reports matched-count/filter metadata. A catalog API-origin selector does not select an AI provider.
+
+Voice uses the browser's SpeechRecognition or webkitSpeechRecognition after an explicit click. A transcript
+fills the editable text field without submitting automatically. Permission, network, unsupported-browser,
+and no-speech states retain text entry. No audio is stored by this app. Browser recognition may send
+audio to its own cloud service; using Ollama does not make speech recognition offline. Physical microphone
+capture and recognition accuracy remain untested.
+
+### Where product details and images belong
+
+Product records belong in a database: IDs, tenant/category, names, integer-cent prices, tags, color,
+audience, product type, and image references. Future stock quantities would also be authoritative data;
+the current sample catalog has no live inventory feed. Image files belong in object storage with a CDN;
+the database stores their references. The default profile uses SQLite and checked-in SVG files.
+The active ignored local configuration now selects **hosted Supabase Postgres**, with a server-private
+`DATABASE_URL` and fixed synthetic `SHOPSENSE_ORGANIZATION_ID`. Fresh setups still default to SQLite.
+
+The backend owns `data/catalog.sample.json`; `npm.cmd run catalog:generate` reproducibly builds its 300
+records and the sibling frontend illustrations. Initial startup adds missing seed records without replacing
+existing rows. Postgres import is an explicit `npm.cmd run catalog:seed:postgres -- --apply`, runs in a
+transaction, and preserves existing IDs. The same transactional seed function prepared the hosted 308-row import, applied through the connected
+operator SQL tool. Runtime credentials cannot import or edit products; seeding requires a separate private
+operator connection. Do not grant the running app migration or catalog-edit privileges. Both repositories
+are still required locally for the original shared content contract.
+
+`supabase/schemas/shopsense.sql` is the declarative source for seven public Postgres tables: organizations,
+organization_members, categories, products, query_sessions, feedback, and ai_daily_usage. Composite keys
+and foreign keys include organization IDs. Product indexes include facets and full-text GIN. The async
+`pg` adapter scopes all operations to the configured organization and limits its connection pool to three.
+Use Supabase's recommended pooler configuration for a future serverless deployment.
+
+Local PGlite tests execute both declarative schema files with minimal Supabase auth stubs. They cover
+import, pagination/search, rollback, tenant/role denial, allowed editor updates, WITH CHECK, self-promotion,
+and a restricted runtime role. `shopsense_runtime.sql` adds an unexposed private runtime_bindings table:
+the login can read only its bound store, append anonymous synthetic query/feedback events, and reserve
+that store's AI budget. It cannot edit catalog/memberships/bindings or read query history, feedback bodies,
+or Vault. RLS is enabled on all eight tables. No role has an anonymous catalog policy.
+
+The active API uses this NOBYPASSRLS runtime login, not postgres or a service-role credential. A Supabase-only
+bootstrap generates its password inside the database and stores it encrypted in Vault; no literal password
+is written into migration history. A private local connection profile holds the runtime credential.
+The checked-in public Supabase CA enables certificate-chain and hostname verification; verification is
+never disabled. The database connection was measured as encrypted and authorized, and the login has no
+RLS bypass. The CA expires April 26, 2031; replace it through a reviewed trust-anchor update before expiry.
+
+Hosted checks verify 308 visible products, actual cross-store record denial, denied catalog/binding/Vault
+access, denied cross-store budget writes, and HTTP 401 for anonymous REST catalog reads. The temporary
+second-store fixture was removed after testing. Real browser search uses Gemini with hosted catalog rows,
+and feedback persists in Supabase. These are database/runtime checks, **not human sign-in or authenticated
+HTTP tenant-isolation evidence**. The API still has no shopper principal and must remain on loopback.
+
+Supabase Storage upload, tenant image paths/ACLs, thumbnails, import administration, and merchant image
+licensing are future work. As an illustration, 1,000 images at 200KB each need about 200MB before variants
+and overhead; bandwidth is a separate quota. Current Supabase Free lists 500MB database and 1GB files,
+with 5GB egress and inactivity pausing. Capacity and production availability are not guaranteed.
+
+### Provider configuration and limits
+
+Only the backend reads ignored `.env.local`; process variables take precedence. Never put keys in
+`NEXT_PUBLIC_*`, the public UI model, source control, URLs, or logs. The shopper's AI option starts off.
+Only opted-in searches call the configured model, using a bounded query and catalog shortlist. Unknown
+IDs, duplicate products, invalid evidence, price violations, oversized/truncated output, and provider
+failure are rejected. Display facts always come from stored records; model output cannot edit inventory.
+
+| Configuration | Behavior |
+| --- | --- |
+| `SHOPSENSE_AI_PROVIDER=local` | Deterministic catalog discovery without an LLM. |
+| `SHOPSENSE_AI_PROVIDER=gemini` and private `GEMINI_API_KEY` | Opted-in Gemini selection; default model `gemini-3.5-flash-lite`, 8-second timeout. |
+| `SHOPSENSE_AI_PROVIDER=ollama` | Opted-in local selection using `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, and 30-second default timeout. |
+| `SHOPSENSE_AI_FALLBACK_PROVIDER=ollama` | Explicit Gemini-to-Ollama recovery, then labeled catalog fallback; default is `none`. |
+
+Ollama endpoints accept loopback HTTP only. The adapter does not download models or start a server.
+It uses at most 12 candidates, 4,096 context tokens, 1,024 output tokens, and `keep_alive:0`.
+The active development profile remains Gemini. Ollama provider-double tests pass, but real local
+generation is unverified. A cloud function's localhost cannot reach a laptop. A self-hosted server must
+remain running and reachable; a hosted model API is the simpler public-demo path.
+
+The application reserves up to **50 AI searches per UTC day** by default, including failures, using an
+atomic persistent database counter. It allows two concurrent AI requests per process. There are no
+automatic retries. These are application guards, not a billing cap or Google's allowance. Actual Gemini
+RPM/TPM/RPD limits depend on the project and model; inspect AI Studio. Google's daily quota resets at
+midnight Pacific. Creating another API key does not create a separate project quota.
+
+Groq and Grok are different providers. Groq and Cloudflare offer limited developer allowances; Cloudflare's
+10,000 neurons/day is compute rather than a request count. Free consumer Grok does not imply free xAI API
+access. Groq/Cloudflare/xAI adapters are not implemented. Hosted-provider fallback requires explicit
+configuration, compatible structured output, privacy disclosure, and independently authorized capacity.
+Consumer subscriptions do not include application API usage by default.
+
+Sources: [Gemini quotas](https://ai.google.dev/gemini-api/docs/rate-limits),
+[Gemini pricing and content handling](https://ai.google.dev/gemini-api/docs/pricing),
+[Groq quotas](https://console.groq.com/docs/rate-limits),
+[Cloudflare allowance](https://developers.cloudflare.com/workers-ai/platform/pricing/),
+[xAI pricing](https://x.ai/pricing), [Supabase pricing](https://supabase.com/pricing),
+[Postgres connections](https://supabase.com/docs/guides/database/connecting-to-postgres),
+[SpeechRecognition](https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition),
+[SQLite on Vercel](https://vercel.com/kb/guide/is-sqlite-supported-in-vercel).
+
+### Hosted release sequence
+
+The dedicated Supabase project **shopsense-ai** (`ixotpmxfdhgooqmybnpk`) was created in
+gopichandchikoti's Org in us-east-1 with a quoted cost of **$0/month**. It is active/healthy on Postgres 17.
+The existing retail-apps project was untouched. Three baseline/isolation/credential-bootstrap migrations
+were applied, then exported from the hosted migration history using the server-generated versions into
+`supabase/migrations/`. Declarative files remain the desired-schema source; do not rewrite applied history.
+Full local Supabase CLI reset/replay has not been run; local schema tests use PGlite instead.
+
+The catalog import and local-API-to-cloud-database connection are verified. Security and health advisors
+return no findings. Performance advisors retain informational unused-index notices on this small new
+dataset; missing foreign-key indexes were added. This is not a performance benchmark or security audit.
+No billing upgrade, GitHub push, Vercel project/deployment, or public UI/API exposure was performed.
+Dashboard: https://supabase.com/dashboard/project/ixotpmxfdhgooqmybnpk.
+Advisor reference: https://supabase.com/docs/guides/database/database-linter?lint=0005_unused_index.
+
+1. Hosted schema/import are verified. Add Supabase Auth and
+   server-verified membership/roles, company onboarding and invitations, and owned saved lists/feedback.
+   Test two companies and owner/editor/employee denial through the actual HTTP API, not just SQL.
+2. Add controlled merchant catalog/image import, storage policies and provenance, identity-based quotas,
+   retention, backup/restore, monitoring, and operational budgets. Current sample inventory has no business
+   stock feed or checkout. Training a foundation model is unnecessary; retrieval keeps business facts fresh.
+3. Implement and verify an API deployment adapter and deployment-owned content artifact for the separate
+   API project, replace loopback rewrites with HTTPS, and use protected Vercel previews. Vercel Hobby's
+   personal/noncommercial restrictions must be reviewed before selling the service.
+4. Verify hosted auth, tenant isolation, durable state/restarts, recovery, quota/error behavior, images,
+   keyboard/dialog access, physical microphone behavior, mobile UI, relevance/negation, and measured latency.
+   A local pass is not production certification. No GitHub push or hosted CI result is claimed.
+
+### Historical local verification — November 13, 2026
+
+Windows with Node 24.15.0: **75 backend tests** pass (99.9% statements/lines, 97.29% branches, 100%
+functions); **49 frontend tests** pass (95.92% statements, 92.4% branches, 96.96% functions, 97.89% lines).
+All **21 Playwright checks pass in each API-origin mode**, using isolated in-memory SQLite and AI doubles.
+These include multi-page browsing, saved IDs outside the first page, strict audience facets, simulated
+speech transcription/review, and a 320px layout check. Physical speech and real Ollama inference are unrun.
+Formatting, lint, backend syntax, frontend type generation/typecheck, production build, and both dependency
+audits pass with zero advisories. `check:ai` separately verifies a real-provider discovery plus pipeline
+price/no-match behavior; no-candidate searches can finish without calling the model.
+
+The hosted-data increment reran backend coverage/format/lint/syntax/audit and the real current browser
+search/feedback flow. Frontend unit/E2E/build counts above are the preceding same-day checks; frontend
+source was unchanged in this hosted-data increment. The final hosted browser flow and persistence after
+API restart pass. TLS rejects an untrusted certificate chain; the explicit provider CA verifies the chain
+and hostname.
+
+## Customer-discovery architecture — November 17, 2026
+
+This section records current behavior and supersedes the explicitly dated November 13 implementation
+notes above where behavior changed. Earlier Gemini 3.5, checkbox opt-in, and 75/49/21 test counts describe
+that historical increment. Current implementation and verification are in the
+[customer-discovery release record](releases/2026-11-17-customer-discovery.md).
+
+The shopper enters a need, refines Collection/Color/Budget, and submits an automatic AI-assisted search.
+The frontend sends `query`, `useAi: true`, and optional strict facets through its same-origin Next rewrite.
+The API intersects the facets with parsed query constraints, retrieves stored rows, and sends a bounded
+shortlist to the configured provider. It resolves the returned IDs and evidence back to catalog facts;
+contradictory or empty retrieval returns no invented products and makes no model call. Omitted/false
+`useAi` remains supported for existing API clients. The verified Gemini default is
+`gemini-3.1-flash-lite` with the existing 8-second timeout, two concurrent calls, and 50 daily reservations.
+
+```mermaid
+flowchart LR
+  Shopper[Shopper search and facets] --> Web[Next.js same-origin API rewrite]
+  Web --> API[Node ESM validation and retrieval]
+  Snapshot[Backend-owned content snapshot] --> API
+  API --> Repository[Catalog repository]
+  Repository --> Postgres[(Active private Supabase profile)]
+  Repository --> SQLite[(Default SQLite / isolated tests)]
+  API --> Provider[Configured bounded Gemini / Ollama selection]
+  Provider --> Grounding[Validate IDs and stored evidence]
+  Layout[Versioned virtual layout and photo manifest] --> Grounding
+  Grounding --> Web
+```
+
+`data/shopsense-ai-model.json` is packaged with the backend. The sync script is an authoring operation,
+not a runtime sibling file dependency. `data/store-layout.json` defines an original virtual store with
+versioned aisles/racks. A repository wrapper derives aisle/rack/shelf labels and applies reviewed photo
+overrides before responses. Layout and photo enrichment are source-controlled artifacts; there is no
+new placement database table, merchant inventory feed, or schema/RLS migration in this increment.
+
+The three local Pexels photographs and their provenance cover matching black shirts, women's black
+dresses, and black headphones. They are clearly labeled style references. The remaining merchandise
+is illustrative artwork or preserved original remote imagery. A production catalog needs licensed
+merchant SKU assets and controlled image import/storage; current photos do not establish stock or
+a retailer partnership.
+
+The frontend cancels obsolete requests and ignores late results/errors after a new search, clear, cancel,
+or unmount. Abort does not guarantee that server/provider work already accepted has stopped. Comparison
+locks body scrolling, makes background content inert, traps focus, and restores its trigger on close.
+A store guide loads the versioned layout on expansion, with retry and cancellation. Search results show
+true returned/total counts, product facts, location labels, and explicit provider/fallback status.
+
+Human authentication, owned saved lists/history, merchant imports, API hosting adaptation, hosted access
+protection, durable recovery/restore, physical speech, full accessibility, and measured production
+performance remain open. The live browser → Supabase → Gemini validation and exact GitHub/deployment
+results are pending the separately recorded release checks; do not infer them from isolated E2E.
+
+## Customer QA update — November 17, 2026
+
+The [customer-discovery release record](releases/2026-11-17-customer-discovery.md) supersedes earlier current-test counts and describes automatic AI, evidence-backed need matching, filters, versioned virtual locations, reviewed photographs, local browser evidence, and the unresolved frontend dependency advisory. Runtime model facts come from the backend snapshot; sibling checkout is an authoring and paired-E2E dependency. Production access and actual merchant commerce remain unfinished.

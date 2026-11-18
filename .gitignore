@@ -8,6 +8,7 @@ coverage/
 data/*.sqlite
 data/*.sqlite-shm
 data/*.sqlite-wal
+.local/
 *.war
 .DS_Store
 

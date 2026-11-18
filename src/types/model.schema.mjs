@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 const stringList = z.array(z.string());
 const stringMap = z.record(z.string(), z.string());
-const productSchema = z
+export const productSchema = z
   .object({
     id: z.string().min(1).max(80),
     name: z.string().min(1).max(160),
@@ -14,6 +14,11 @@ const productSchema = z
     imageAlt: z.string().min(1).max(240),
     attributes: stringList.max(40),
     matchTags: stringList.max(80),
+    color: z
+      .enum(['black', 'white', 'navy', 'red', 'green', 'blue'])
+      .optional(),
+    audience: z.enum(['women', 'men', 'kids', 'unisex']).optional(),
+    productType: z.string().min(1).max(40).optional(),
   })
   .strict();
 
