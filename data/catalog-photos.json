@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "assets": [
+    {
+      "id": "shirt-black",
+      "photoId": 8532616,
+      "productType": "shirt",
+      "color": "black",
+      "author": "Hanna Pad / Anna Nekrashevich",
+      "source": "https://www.pexels.com/photo/a-black-shirt-hanging-on-the-wall-8532616/",
+      "alt": "Reference photograph of a black T-shirt on a hanger",
+      "imageUrl": "/catalog/photos/shirt-black.jpg",
+      "downloadUrl": "https://images.pexels.com/photos/8532616/pexels-photo-8532616.jpeg?auto=compress&cs=tinysrgb&w=960",
+      "sha256": "17a672cb7b1375f6dadea25927ae8038c76311d46b7c9a2cd1e9a0514e938b1b",
+      "bytes": 31846,
+      "license": "Pexels License",
+      "licenseUrl": "https://www.pexels.com/license/",
+      "downloadedOn": "2026-11-16",
+      "usage": "Style reference for illustrative merchandise; not a merchant SKU photograph or endorsement."
+    },
+    {
+      "id": "dress-black",
+      "photoId": 19895958,
+      "productType": "dress",
+      "color": "black",
+      "audience": "women",
+      "author": "Marcelo Verfe",
+      "source": "https://www.pexels.com/photo/black-dress-on-a-hanger-19895958/",
+      "alt": "Reference photograph of a black dress on a wooden hanger",
+      "imageUrl": "/catalog/photos/dress-black.jpg",
+      "downloadUrl": "https://images.pexels.com/photos/19895958/pexels-photo-19895958.jpeg?auto=compress&cs=tinysrgb&w=960",
+      "sha256": "96aeba3ff5cfb1d138741a01fe4f21df2290ec3103a4f6b8f1e218ab93722c2c",
+      "bytes": 123182,
+      "license": "Pexels License",
+      "licenseUrl": "https://www.pexels.com/license/",
+      "downloadedOn": "2026-11-16",
+      "usage": "Style reference for illustrative merchandise; not a merchant SKU photograph or endorsement."
+    },
+    {
+      "id": "headphones-black",
+      "photoId": 30428610,
+      "productType": "headphones",
+      "color": "black",
+      "author": "Vladislav Anchuk",
+      "source": "https://www.pexels.com/photo/black-studio-headphones-on-white-background-30428610/",
+      "alt": "Reference photograph of black studio headphones on a white background",
+      "imageUrl": "/catalog/photos/headphones-black.jpg",
+      "downloadUrl": "https://images.pexels.com/photos/30428610/pexels-photo-30428610.jpeg?auto=compress&cs=tinysrgb&w=960",
+      "sha256": "00c46e4fe07b48385cb887636f65b72b4a919ccffa70e202aa98d4cdaa0c13a9",
+      "bytes": 166153,
+      "license": "Pexels License",
+      "licenseUrl": "https://www.pexels.com/license/",
+      "downloadedOn": "2026-11-16",
+      "usage": "Style reference for illustrative merchandise; not a merchant SKU photograph or endorsement."
+    }
+  ]
+}

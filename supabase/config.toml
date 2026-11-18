@@ -1,0 +1,11 @@
+project_id = "shopsense-ai"
+
+[db]
+major_version = 17
+
+[db.migrations]
+schema_paths = ["./schemas/*.sql"]
+
+# Flat declarative files use the documented legacy diff workflow.
+[experimental.pgdelta]
+enabled = false
