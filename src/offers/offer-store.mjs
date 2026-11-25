@@ -381,6 +381,7 @@ export function createOfferStore(
 ) {
   initializeOfferSchema(database);
   return {
+    batch: (work) => transaction(database, work),
     upsertLocations: (locations) => upsertLocations(database, locations),
     publishOffer: (input) => publishOffer(database, now, input),
     withdrawOffer: (input) => withdrawOffer(database, now, input),
