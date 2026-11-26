@@ -157,4 +157,10 @@ function fingerprintQuery(query, key) {
   return createHmac('sha256', key).update(normalizeText(query)).digest('hex');
 }
 
-export { inferIntent, scoreProduct };
+export {
+  createResultSummary,
+  explainMatch,
+  fingerprintQuery,
+  inferIntent,
+  scoreProduct,
+};
