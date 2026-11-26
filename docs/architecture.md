@@ -309,6 +309,10 @@ The repository contract is [openapi.yaml](../openapi.yaml). Keep public paths, s
 | POST   | `/api/v1/search`   | Bounded query, useAi, facets         | Ranked catalog products and matched details |
 | POST   | `/api/v1/feedback` | `{ productId, helpful }`    | Persisted feedback acceptance               |
 | GET | `/api/v1/store-layout` | None | Versioned original virtual aisles and racks |
+| GET | `/api/v2/locations` | None | Store locations known to the offer projection |
+| GET | `/api/v2/catalog` | Optional `location`, `category`, `limit`, `offset`, `ids` | Published offers with store availability, `unavailableIds` and catalog freshness |
+| POST | `/api/v2/search` | Bounded query, `useAi`, optional `location`, facets and `availableOnly` | Offer matches with availability, attribute-linked `matches` and freshness |
+| GET | `/api/v2/feed-status` | None | Feed state (`empty`/`ready`/`stale`), counts and freshness for the staff page |
 
 Success responses use `{ data }`; failures use `{ error: { code, message, requestId } }`. The complete request/response contract is in [`shopsense-backend/openapi.yaml`](../openapi.yaml). `X-Request-ID` and `X-Trace-ID` are returned on responses; request IDs are included in structured logs. Request bodies and raw queries are not logged.
 
@@ -329,6 +333,10 @@ limit.
 | `GET /catalog`   | Unauthenticated local browser or caller; optional category must exist in the public model.  | Reads catalog rows from the selected API-owned storage profile.                                                       | `INVALID_CATEGORY`, `ORIGIN_NOT_ALLOWED`, or `RATE_LIMITED`; correct the filter or retry later.                              |
 | `POST /search`   | Unauthenticated local browser or caller; strict JSON, bounded body, query length 3–240.     | Reads catalog; stores only a keyed fingerprint, inferred category, result count, and timestamp. | `INVALID_JSON`, `PAYLOAD_TOO_LARGE`, `INVALID_SEARCH`, `RATE_LIMITED`, or safe `INTERNAL_ERROR`; keep the query and retry.   |
 | `POST /feedback` | Unauthenticated local browser or caller; strict product ID and boolean; product must exist. | Reads product, then inserts minimal feedback.                                                   | `INVALID_FEEDBACK`, `PRODUCT_NOT_FOUND`, `RATE_LIMITED`, or safe `INTERNAL_ERROR`; retry the feedback action if appropriate. |
+| `GET /v2/locations`, `GET /v2/catalog` | Unauthenticated local browser or caller; store ID must exist; `ids` capped at 50. | Reads the SQLite offer projection only; no write. | `INVALID_LOCATION`, `INVALID_REQUEST`, `RATE_LIMITED`; `OFFERS_NOT_SUPPORTED` (501) on profiles without the projection. |
+| `POST /v2/search` | Unauthenticated local browser or caller; strict JSON; `availableOnly` requires a store. | Reads offers; stores the same keyed fingerprint record as v1. | `INVALID_SEARCH`, `INVALID_LOCATION`, `PAYLOAD_TOO_LARGE`, `RATE_LIMITED`, 501 as above; keep the query and retry. |
+| `GET /v2/feed-status` | Unauthenticated local caller (the `/staff` page). It is read-only and returns counts and timestamps only. | Reads aggregate offer/location counts; no write. | `RATE_LIMITED`, 501 as above. Requires staff identity before any remote exposure. |
+| Offer writes | No HTTP route. Only in-process `publishOffer`, `withdrawOffer` and `recordAvailability`, called by the startup feed and tests. | Versioned upserts in one transaction per feed. | Invalid identifiers/timestamps throw and roll the whole feed back. |
 | Other paths      | No route or elevated actor exists.                                                          | No domain read/write.                                                                           | Safe `NOT_FOUND` response.                                                                                                   |
 
 `SHOPSENSE_ALLOWED_ORIGINS` may replace the model origin list. The process-local
@@ -411,6 +419,9 @@ The two Git repositories remain separate. Each owns one maintained README and th
 | Repository-local architecture    | Guide available in this checkout and linked from README           | docs/architecture.md; README.md    | Documented and validated                                      | File, link, and diagram checks         | Keep documentation consistent with source changes                                                                                                                                                                         |
 | API composition and domain state | Preserve existing workflows and failure states                    | src/server.mjs and source map      | Implemented; application verification limits are listed below | Current source and existing app design | Shopper/catalog-editor identity and authorization are not established. Most merchandise remains illustrative. Comparison focus trapping/restoration is verified; full accessibility remains unmeasured. Historical IT image smoke failed; a local pass does not establish production readiness. |
 | Public deployment                | Verified identity, data durability, recovery, and hosted behavior | Existing deployment/API boundaries | Needs separate hardening/verification                         | No new hosted evidence                 | Local checks do not establish production readiness                                                                                                                                                                        |
+| SS-01 published offers | Offer carries merchant ID, SKU, source version, price, currency, update time; duplicate update keeps one row; withdrawal hides it from search, compare refresh and id lookup; empty install is distinguishable | src/offers/offer-store.mjs, offer-feed.mjs, src/http/offers-router.mjs | Implemented, SQLite profile only | `offer-store.test.mjs`, `offer-feed.test.mjs`, `offers-router.test.mjs` | Synthetic feed only; no CommerceHub integration; Postgres answers 501 |
+| SS-02 constraints before ranking | Store, audience, colour and price apply before ranking; missing or stale stock never reads as in stock | src/offers/offer-discovery.mjs, availability.mjs | Implemented | `offer-discovery.test.mjs` (SS-02 acceptance, boundary, ranking-cap cases) | Freshness limit is a single global setting |
+| SS-03 provider-free grounded search | Works with every remote provider disabled; matches link to stored attributes; results carry freshness | src/http/offers-router.mjs, src/offers/offer-discovery.mjs | Implemented | `offers-router.test.mjs` (no outbound call; invented IDs; timeout) | Optional provider path unchanged and off by default |
 
 ## 13. Dated verification and limitations
 
@@ -706,3 +717,97 @@ results are pending the separately recorded release checks; do not infer them fr
 ## Customer QA update — November 17, 2026
 
 The [customer-discovery release record](releases/2026-11-17-customer-discovery.md) supersedes earlier current-test counts and describes automatic AI, evidence-backed need matching, filters, versioned virtual locations, reviewed photographs, local browser evidence, and the unresolved frontend dependency advisory. Runtime model facts come from the backend snapshot; sibling checkout is an authoring and paired-E2E dependency. Production access and actual merchant commerce remain unfinished.
+
+## Store offers, availability and freshness (SS-01 to SS-03) — November 26, 2026
+
+Stage B slice, local only. Branch `feature/ss-01-03-local-discovery`. The owner approved the additive v2
+contract, the SQLite-only projection, feed writes without an HTTP route, and the read-only `/staff` page.
+
+### ADR SS-A2: additive `/api/v2` offer routes
+
+- **Decision.** Add read-only `/api/v2` routes for locations, catalog pages, search and feed status. Leave every
+  v1 route and envelope unchanged.
+- **Why.** The frontend parses products with strict schemas, so adding fields to v1 would break any deployed
+  client that predates this change. The Stage A design also proposed v2.
+- **Alternatives.** Extending v1 in place (less code, breaks strict clients); a separate projection service
+  (more operating cost, no evidence it is needed).
+- **Consequences.** Two route families share the same domain helpers. The optional provider path is reused by
+  wrapping the offer discovery service in the existing `createAiRecommendations` orchestrator.
+
+### Data model (SQLite profile)
+
+```mermaid
+erDiagram
+  PRODUCTS ||--o| OFFERS : "published as"
+  OFFERS ||--o{ OFFER_AVAILABILITY : "stock per store"
+  LOCATIONS ||--o{ OFFER_AVAILABILITY : "at"
+```
+
+| Table | Key | Columns and rules |
+| --- | --- | --- |
+| `locations` | `id` | `name`, `display_order` |
+| `offers` | `(merchant_id, sku)` | `product_id` (unique, FK products), `source_version > 0`, `offer_price_cents >= 0`, `currency` (3 letters), `updated_at`, `withdrawn_at` |
+| `offer_availability` | `(merchant_id, sku, location_id)` | `state` in `in_stock`/`out_of_stock`/`unknown`, `confirmed_at`, `source_version > 0` |
+
+Tables are created at startup with `CREATE TABLE IF NOT EXISTS`, like the existing facet columns. No migration
+file was added and `supabase/` is unchanged. The PostgreSQL repository has no `offers` property, so every v2
+route answers `501 OFFERS_NOT_SUPPORTED` there while v1 keeps working.
+
+### Write rules (in-process only)
+
+| Operation | Accepted | Ignored or rejected |
+| --- | --- | --- |
+| `publishOffer` | New offer (`created`); higher source version (`updated`, also clears a withdrawal) | Same version and payload (`unchanged`); lower version or withdrawn at this version (`stale`); same version with a different payload, or a product already owned by another SKU (`conflict`); unknown product |
+| `withdrawOffer` | Same or higher version (`withdrawn`) | Lower version (`stale`); repeat at the same version (`unchanged`); unknown offer |
+| `recordAvailability` | Higher version, or same version with a newer confirmation (`recorded`) | Older version or confirmation (`stale`); identical (`unchanged`); same time with a different state (`conflict`); withdrawn/unknown offer; unknown store |
+
+Identifiers must match `^[A-Za-z0-9._:-]{1,80}$`; timestamps must be ISO UTC and no more than five minutes in
+the future. A feed is applied in one transaction, so one invalid item rolls back the whole feed.
+
+### Availability and freshness rules
+
+- With a store, each item reports `{ locationId, state, confirmedAt, stale }`. Without a store,
+  `availability` is `null` and nothing claims stock.
+- A record older than `SHOPSENSE_AVAILABILITY_MAX_AGE_MINUTES` (default 1440, range 1 to 10080) is reported as
+  `unknown` with `stale: true`. A confirmation exactly at the limit is fresh. A missing record is `unknown`.
+  Neither ever reads as `in_stock`.
+- `availableOnly` keeps only fresh `in_stock` records at the named store, applied in SQL before ranking, so the
+  36-item ranking cap cannot hide an in-stock item. Price bounds use the offer price.
+- `catalog.state` is `empty` when no offer is published, `stale` when the newest published update or
+  confirmation is older than the limit, otherwise `ready`. `asOf` is that newest timestamp; `generatedAt` is
+  the response time.
+- Matched details become `matches`: `{ field: "attributes", index, text }` when the text is a stored
+  attribute, otherwise `{ field: "tags", text }`.
+
+### Synthetic feed and configuration
+
+`SHOPSENSE_OFFER_FEED=sample` (default) publishes every catalog product as `SYN-<productId>` from merchant
+`synthetic-merchant-1` at two synthetic stores (`store-a` Northside, `store-b` Riverside). Deterministic plans
+give in-stock, out-of-stock, missing and three-day-old (stale) records. Restarts refresh confirmations without
+conflicting on offers. `SHOPSENSE_OFFER_FEED=none` starts an empty install for the onboarding state. No sample
+ID is mapped to a real SKU.
+
+### Failure and recovery
+
+| Condition | API result | Client behavior |
+| --- | --- | --- |
+| Unknown store | 400 `INVALID_LOCATION` | Model copy; choose a listed store |
+| `availableOnly` without a store | 400 `INVALID_SEARCH` | The UI disables the filter without a store |
+| Nothing published | 200, `catalog.state: "empty"` | Shoppers see "No products published for this store."; staff see "Connect catalog" |
+| Nothing fresh | 200, `catalog.state: "stale"` | Stale warning; no item reads as in stock |
+| Provider disabled, invalid or timed out | 200 with labeled `assistance` fallback | Catalog results remain usable |
+| Storage profile without projection | 501 `OFFERS_NOT_SUPPORTED` | Model copy |
+
+### Security and privacy notes
+
+No v2 route writes data apart from the existing keyed query fingerprint. `feed-status` is unauthenticated
+because this build has no staff identity; it exposes counts and timestamps only and must gain staff
+authorization before remote exposure. Providers still receive only their explicit field allowlist (id, name,
+category, description, price, evidence); offer and availability fields are not sent. Logs keep the existing
+route template, status and safe error code; v2 paths are known templates.
+
+### Limits
+
+The feed is synthetic and local. CommerceHub offers and StockSync snapshots are not integrated (SS-04 and later).
+PostgreSQL has no projection. Virtual store placement is unchanged and still labeled virtual. The freshness limit
+is global, not per store. Cursor pagination from the Stage A design was not adopted; v2 keeps offset paging.
