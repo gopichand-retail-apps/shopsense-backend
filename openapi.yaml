@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: ShopSense API
   version: 1.0.0
-  description: Loopback paginated catalog and optional Gemini or Ollama selection. API authentication is not implemented.
+  description: Loopback paginated catalog, a version 2 offer projection with store availability, and optional Gemini or Ollama selection. API authentication is not implemented.
 servers:
   - url: http://127.0.0.1:5802/api/v1
     description: Loopback-only local API
@@ -220,6 +220,173 @@ paths:
           $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/InternalError'
+  /v2/locations:
+    servers:
+      - url: http://127.0.0.1:5802/api
+        description: Loopback-only local API. Version 2 reads the SQLite offer projection.
+    get:
+      operationId: listOfferLocations
+      summary: List the store locations known to the offer projection
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/Traceparent'
+      responses:
+        '200':
+          description: Store locations in display order.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+            X-Trace-ID:
+              $ref: '#/components/headers/TraceId'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/LocationList'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '501':
+          $ref: '#/components/responses/OffersUnsupported'
+  /v2/feed-status:
+    servers:
+      - url: http://127.0.0.1:5802/api
+        description: Loopback-only local API. Version 2 reads the SQLite offer projection.
+    get:
+      operationId: getOfferFeedStatus
+      summary: Read offer feed counts and freshness for the staff onboarding page
+      description: Read-only and unauthenticated in this local build. It returns counts and timestamps only.
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/Traceparent'
+      responses:
+        '200':
+          description: Feed state, counts and freshness watermark.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+            X-Trace-ID:
+              $ref: '#/components/headers/TraceId'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/FeedStatus'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '501':
+          $ref: '#/components/responses/OffersUnsupported'
+  /v2/catalog:
+    servers:
+      - url: http://127.0.0.1:5802/api
+        description: Loopback-only local API. Version 2 reads the SQLite offer projection.
+    get:
+      operationId: browseOffers
+      summary: Page published offers, optionally with availability at one store
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/Traceparent'
+        - in: query
+          name: location
+          description: Store location ID. Unknown IDs are rejected with INVALID_LOCATION.
+          schema: { type: string, pattern: '^[A-Za-z0-9._:-]{1,80}$' }
+        - in: query
+          name: category
+          description: Optional category ID from the public content model.
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 24 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0, maximum: 1000000, default: 0 }
+        - in: query
+          name: ids
+          description: Up to 50 comma-separated product IDs. Withdrawn or unknown IDs are listed in unavailableIds.
+          schema: { type: string }
+      responses:
+        '200':
+          description: Published offers, total, unavailable requested IDs and catalog freshness.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+            X-Trace-ID:
+              $ref: '#/components/headers/TraceId'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/OfferPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '501':
+          $ref: '#/components/responses/OffersUnsupported'
+  /v2/search:
+    servers:
+      - url: http://127.0.0.1:5802/api
+        description: Loopback-only local API. Version 2 reads the SQLite offer projection.
+    post:
+      operationId: searchOffers
+      summary: Search published offers with store, stock, audience, colour and price constraints applied before ranking
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/Traceparent'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OfferSearchRequest'
+      responses:
+        '200':
+          description: Grounded offer matches, assistance mode and catalog freshness.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+            X-Trace-ID:
+              $ref: '#/components/headers/TraceId'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/OfferSearchData'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '501':
+          $ref: '#/components/responses/OffersUnsupported'
 components:
   parameters:
     RequestId:
@@ -324,6 +491,17 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorEnvelope'
+    OffersUnsupported:
+      description: The configured storage profile has no offer projection (for example PostgreSQL). Code OFFERS_NOT_SUPPORTED.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+        X-Trace-ID:
+          $ref: '#/components/headers/TraceId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
   schemas:
     HealthData:
       type: object
@@ -346,8 +524,12 @@ components:
             available: { type: boolean }
             provider: { type: string, enum: [local, gemini, ollama] }
     Product:
+      description: Version 1 product. Version 2 adds offer and availability in OfferProduct.
+      allOf:
+        - $ref: '#/components/schemas/ProductFields'
+      unevaluatedProperties: false
+    ProductFields:
       type: object
-      additionalProperties: false
       required:
         [
           id,
@@ -523,3 +705,146 @@ components:
               type: string
             requestId:
               type: string
+    Location:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: { type: string, pattern: '^[A-Za-z0-9._:-]{1,80}$' }
+        name: { type: string, maxLength: 120 }
+    LocationList:
+      type: object
+      required: [locations]
+      properties:
+        locations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Location'
+    Offer:
+      type: object
+      additionalProperties: false
+      required:
+        [merchantId, sku, sourceVersion, priceCents, currency, updatedAt]
+      properties:
+        merchantId: { type: string }
+        sku: { type: string }
+        sourceVersion: { type: integer, minimum: 1 }
+        priceCents: { type: integer, minimum: 0 }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        updatedAt: { type: string, format: date-time }
+    Availability:
+      type: object
+      additionalProperties: false
+      required: [locationId, state, confirmedAt, stale]
+      description: Missing records and records older than the freshness limit are reported as unknown, never as in_stock.
+      properties:
+        locationId: { type: string }
+        state: { type: string, enum: [in_stock, out_of_stock, unknown] }
+        confirmedAt: { type: [string, 'null'], format: date-time }
+        stale: { type: boolean }
+    OfferProduct:
+      allOf:
+        - $ref: '#/components/schemas/ProductFields'
+        - type: object
+          required: [offer, availability]
+          properties:
+            offer:
+              $ref: '#/components/schemas/Offer'
+            availability:
+              description: Null when the request named no store.
+              oneOf:
+                - $ref: '#/components/schemas/Availability'
+                - type: 'null'
+      unevaluatedProperties: false
+    CatalogFreshness:
+      type: object
+      required: [state, asOf, generatedAt, maxAgeMinutes]
+      properties:
+        state:
+          type: string
+          enum: [empty, ready, stale]
+          description: empty when no offer is published; stale when nothing was updated or confirmed within the limit.
+        asOf: { type: [string, 'null'], format: date-time }
+        generatedAt: { type: string, format: date-time }
+        maxAgeMinutes: { type: integer, minimum: 1, maximum: 10080 }
+    FeedStatus:
+      allOf:
+        - $ref: '#/components/schemas/CatalogFreshness'
+        - type: object
+          required: [offerCount, withdrawnCount, locationCount]
+          properties:
+            offerCount: { type: integer, minimum: 0 }
+            withdrawnCount: { type: integer, minimum: 0 }
+            locationCount: { type: integer, minimum: 0 }
+    OfferPage:
+      type: object
+      required: [items, total, unavailableIds, catalog]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OfferProduct'
+        total: { type: integer, minimum: 0 }
+        unavailableIds: { type: array, items: { type: string } }
+        catalog:
+          $ref: '#/components/schemas/CatalogFreshness'
+    OfferSearchRequest:
+      type: object
+      additionalProperties: false
+      required: [query]
+      properties:
+        query: { type: string, minLength: 3, maxLength: 240 }
+        useAi: { type: boolean, default: false }
+        location:
+          type: string
+          pattern: '^[A-Za-z0-9._:-]{1,80}$'
+          description: Store location ID. Unknown IDs are rejected with INVALID_LOCATION.
+        filters:
+          type: object
+          additionalProperties: false
+          properties:
+            audience: { type: string, enum: [women, men, kids, unisex] }
+            color:
+              { type: string, enum: [black, white, navy, red, green, blue] }
+            maximumPriceCents: { type: integer, minimum: 0, maximum: 100000000 }
+            availableOnly:
+              type: boolean
+              description: Only fresh in_stock records at the named store. Requires location, otherwise INVALID_SEARCH.
+    Match:
+      type: object
+      required: [field, text]
+      properties:
+        field: { type: string, enum: [attributes, tags] }
+        index:
+          type: integer
+          minimum: 0
+          description: Present for attributes; the position in product.attributes.
+        text: { type: string }
+    OfferRecommendation:
+      type: object
+      required: [product, matchedDetails, matches]
+      properties:
+        product:
+          $ref: '#/components/schemas/OfferProduct'
+        matchedDetails: { type: array, maxItems: 4, items: { type: string } }
+        matches:
+          type: array
+          items:
+            $ref: '#/components/schemas/Match'
+    OfferSearchData:
+      type: object
+      required: [intentCategory, resultCount, results, summary, source, catalog]
+      properties:
+        intentCategory: { type: [string, 'null'] }
+        resultCount: { type: integer, minimum: 0 }
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/OfferRecommendation'
+        summary: { type: string }
+        source: { type: string }
+        totalMatches: { type: integer, minimum: 0 }
+        assistance:
+          $ref: '#/components/schemas/SearchData/properties/assistance'
+        catalog:
+          $ref: '#/components/schemas/CatalogFreshness'

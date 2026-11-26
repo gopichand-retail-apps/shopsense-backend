@@ -76,6 +76,19 @@ function tally(results) {
   return counts;
 }
 
+// Seeds the projection at startup: 'sample' (synthetic feed), 'none' (empty install),
+// or a function receiving the store (tests). Profiles without an offer projection are skipped.
+export function seedOffers(repository, offerFeed, { model, now }) {
+  if (!repository.offers || offerFeed === 'none') return null;
+  const context = { products: repository.listProducts(), now: now() };
+  if (typeof offerFeed === 'function')
+    return offerFeed(repository.offers, context);
+  return applyFeed(
+    repository.offers,
+    buildSampleFeed({ ...context, currency: model.app.currency }),
+  );
+}
+
 export function applyFeed(store, feed) {
   return store.batch(() => {
     store.upsertLocations(feed.locations);

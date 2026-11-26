@@ -7,6 +7,10 @@ const knownRoutes = new Set([
   '/api/v1/search',
   '/api/v1/feedback',
   '/api/v1/store-layout',
+  '/api/v2/locations',
+  '/api/v2/catalog',
+  '/api/v2/search',
+  '/api/v2/feed-status',
 ]);
 
 export function resolveRequestId(value) {

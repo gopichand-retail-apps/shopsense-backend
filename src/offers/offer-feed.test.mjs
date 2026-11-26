@@ -120,13 +120,22 @@ test('a rejected item rolls back the whole feed instead of applying part of it',
 });
 
 test('availability freshness limit defaults to one day and rejects unusable values', () => {
-  assert.deepEqual(readOfferConfiguration({}), { maxAgeMinutes: 1440 });
+  assert.deepEqual(readOfferConfiguration({}), {
+    maxAgeMinutes: 1440,
+    feed: 'sample',
+  });
   assert.deepEqual(
-    readOfferConfiguration({ SHOPSENSE_AVAILABILITY_MAX_AGE_MINUTES: '90' }),
-    { maxAgeMinutes: 90 },
+    readOfferConfiguration({
+      SHOPSENSE_AVAILABILITY_MAX_AGE_MINUTES: '90',
+      SHOPSENSE_OFFER_FEED: 'none',
+    }),
+    { maxAgeMinutes: 90, feed: 'none' },
   );
   for (const value of ['0', '-5', 'soon', '20000'])
     assert.throws(() =>
       readOfferConfiguration({ SHOPSENSE_AVAILABILITY_MAX_AGE_MINUTES: value }),
     );
+  assert.throws(() =>
+    readOfferConfiguration({ SHOPSENSE_OFFER_FEED: 'remote' }),
+  );
 });
