@@ -60,6 +60,22 @@ The API binds to `127.0.0.1:5802`. It creates `data/shopsense.sqlite` on first s
 - `GET /api/v1/store-layout`: versioned virtual aisles/racks; product locations are derived from this source-controlled artifact.
 - `POST /api/v1/feedback`: persist a product ID and helpful/not-relevant response.
 
+Version 2 adds read-only store offer routes (SQLite profile only; other profiles answer `501 OFFERS_NOT_SUPPORTED`):
+
+- `GET /api/v2/locations`: store locations.
+- `GET /api/v2/catalog?location=<id>&category=<id>&limit=24&offset=0&ids=<ids>`: published offers with merchant ID,
+  SKU, source version, price, currency, update time and availability at the store. Withdrawn or unknown `ids` are
+  listed in `unavailableIds`. Every page carries `catalog` freshness (`empty`, `ready` or `stale`).
+- `POST /api/v2/search`: like v1, plus optional `location` and `filters.availableOnly`. Store, audience, colour and
+  price apply before ranking. Missing or stale stock is reported as `unknown`, never `in_stock`. Matched details are
+  also returned as `matches` that point at stored attribute indexes.
+- `GET /api/v2/feed-status`: feed state, counts and freshness for the read-only staff page.
+
+Offers enter only through in-process functions and the startup feed; there is no HTTP write. Configuration:
+`SHOPSENSE_OFFER_FEED=sample|none` (default `sample`, a synthetic feed for two stores) and
+`SHOPSENSE_AVAILABILITY_MAX_AGE_MINUTES` (default 1440). Details: [store offers, availability and
+freshness](docs/architecture.md#store-offers-availability-and-freshness-ss-01-to-ss-03--november-26-2026).
+
 Errors use `{ "error": { "code", "message", "requestId" } }`. Request IDs are returned in `X-Request-ID` and included in structured JSON request logs. New query-session fingerprints use HMAC-SHA-256 with a random process-local key, so they do not correlate across restarts. Raw prompts are not persisted or logged. Older local databases may contain legacy unkeyed hashes; replace such a database if its previous prompts could be sensitive.
 
 ## Checks

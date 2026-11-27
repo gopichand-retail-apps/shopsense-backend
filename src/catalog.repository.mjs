@@ -1,21 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { catalogPage, retrieveProducts } from './catalog/sqlite-search.mjs';
+import { transaction } from './catalog/transaction.mjs';
+import { createOfferStore } from './offers/offer-store.mjs';
 import { productSchema } from './types/model.schema.mjs';
 
-function transaction(database, work) {
-  database.exec('BEGIN IMMEDIATE');
-  try {
-    const result = work();
-    database.exec('COMMIT');
-    return result;
-  } catch (error) {
-    database.exec('ROLLBACK');
-    throw error;
-  }
-}
-
-function mapProduct(row) {
+export function mapProduct(row) {
   return {
     id: row.id,
     name: row.name,
@@ -42,6 +32,7 @@ export function createCatalogRepository({
   databasePath,
   model,
   catalogProducts = [],
+  now = () => new Date(),
 }) {
   const database = new DatabaseSync(databasePath);
   try {
@@ -61,7 +52,7 @@ export function createCatalogRepository({
     database.close();
     throw error;
   }
-  return createRepository(database);
+  return createRepository(database, now);
 }
 
 function addCatalogFacets(database) {
@@ -157,8 +148,9 @@ function seedCatalog(database, model) {
   });
 }
 
-function createRepository(database) {
+function createRepository(database, now) {
   return {
+    offers: createOfferStore(database, mapProduct, { now }),
     listProducts: (category = null) => listProducts(database, category),
     catalogPage: (options) => catalogPage(database, options, mapProduct),
     retrieveProducts: (intent) =>

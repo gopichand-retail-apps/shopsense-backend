@@ -4,21 +4,14 @@ import { readJsonBody } from './json.mjs';
 import { setCorsHeaders } from './request-metadata.mjs';
 import { APP_VERSION } from '../app-version.mjs';
 import { storeLayout } from '../catalog/store-layout.mjs';
+import { offerRoutes } from './offers-router.mjs';
+import { searchFilterShape, searchQuery } from './search-schema.mjs';
 
 const searchSchema = z
   .object({
-    query: z.string().trim().min(3).max(240),
+    query: searchQuery,
     useAi: z.boolean().optional(),
-    filters: z
-      .object({
-        audience: z.enum(['women', 'men', 'kids', 'unisex']).optional(),
-        color: z
-          .enum(['black', 'white', 'navy', 'red', 'green', 'blue'])
-          .optional(),
-        maximumPriceCents: z.number().int().min(0).max(100_000_000).optional(),
-      })
-      .strict()
-      .optional(),
+    filters: z.object(searchFilterShape).strict().optional(),
   })
   .strict();
 const feedbackSchema = z
@@ -38,6 +31,7 @@ const handlers = new Map([
     'GET /api/v1/store-layout',
     () => ({ status: 200, body: { data: storeLayout } }),
   ],
+  ...offerRoutes,
 ]);
 
 export async function routeApiRequest(context) {

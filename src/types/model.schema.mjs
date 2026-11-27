@@ -33,6 +33,8 @@ const contentModelSchema = z
           .object({
             invalidRequest: z.string().min(1),
             invalidSearch: z.string().min(1),
+            invalidLocation: z.string().min(1),
+            offersUnavailable: z.string().min(1),
             notFound: z.string().min(1),
             originNotAllowed: z.string().min(1),
             payloadTooLarge: z.string().min(1),

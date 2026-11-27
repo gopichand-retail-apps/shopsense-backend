@@ -1,4 +1,12 @@
-export function buildProductWhere({
+export function buildProductWhere(options = {}) {
+  const { clauses, parameters } = buildProductClauses(options);
+  return {
+    sql: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '',
+    parameters,
+  };
+}
+
+export function buildProductClauses({
   categoryId = null,
   filters = {},
   tokens = [],
@@ -34,10 +42,7 @@ export function buildProductWhere({
       ...tokens.map((token) => `%${token.replace(/[\\%_]/g, '\\$&')}%`),
     );
   }
-  return {
-    sql: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '',
-    parameters,
-  };
+  return { clauses, parameters };
 }
 
 function shouldSearchTokens({ tokens, categoryId, filters }) {
